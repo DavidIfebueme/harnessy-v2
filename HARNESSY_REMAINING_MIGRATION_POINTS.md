@@ -1,0 +1,158 @@
+# Harnessy Remaining Migration Points
+
+This document tracks the remaining Harnessy v1 to Harnessy v2 migration surface after the initial Effect-powered core landed.
+
+Product rule: use Harnessy/Harnessing as product language. Garden is the enterprise layer for UI, org workspace, access control, and connectors.
+
+## Delegation state
+
+Completed writer run: `b281b957-1687-419f-9697-a0367189812e` failed acceptance finalization, but its code was reconciled and validated.
+
+Completed wave 2 writer run: `83764eb0-8fae-4d0a-9e93-d5dcd8412158` failed because the materializer child hit a fetch error before chain integration, but the materializer/checker files were present and reconciled manually.
+
+Parent-authored contexts:
+
+- Wave 1: `/tmp/harnessy-v2-parallel-context.md`
+- Wave 2: `/tmp/harnessy-v2-wave2-context.md`
+
+Paused obsolete chain: `fd948e25-7f11-4d56-9c1a-33d4c2015718`. Do not resume it.
+
+## Current core coverage
+
+Implemented in `packages/harnessy-core`:
+
+- Effect CLI/runtime skeleton with edge-provided platform services.
+- `harnessy install`, `init`, `verify`, `doctor`, `capability list/add/inspect`, and `deps check`.
+- Schema-backed lockfile, profile, capability source, capability entry, manifest, project info, and dependency check models.
+- Local `harnessy.capability.json` ingestion.
+- Capability policy metadata: `blastRadius`, `permissions`, `dataCategories`, and `egress`.
+- Project detection for package manager, workspaces, monorepo type, apps/packages/tools, existing Harnessy/v1 footprint, and git origin org/repo.
+- Profile verification for context paths and profile capability ids.
+- PATH-based tool dependency checks without shell execution.
+- Scoped memory scaffolding and package script patching.
+- Tiny local capability fixture and Effect Vitest coverage.
+- Full v1 compatibility capability pack at `packages/capability-harnessy-v1-full`, including a complete v1 repo snapshot plus direct resources for flow-install, the context vault, Jarvis CLI, and bootstrap docs.
+- Native v1-compatible installer options: saved `installPaths`, `--dry-run`, `--reconfigure`, `--step`, `--agents-file`, `--context-dir`, `--skills-dir`, `--scripts-dir`, `--yes`, scoped memory `_scopes.yaml`, AGENTS.md managed block, context AGENTS.md managed block, and force refresh that preserves lockfile capabilities.
+
+## Remaining core points
+
+### Capability pack format
+
+Open points:
+
+- Manifest resources beyond `context`: skills, command prompts, templates, scripts/tools, references, extension descriptors, generated files, checks.
+- Manifest-defined deterministic checks: path existence, file content, tool availability, future auth checks, and profile checks.
+- Trace/autoresearch metadata as policy/introspection fields, not autonomous runtime yet.
+- State file declarations for run-scoped state, learning registries, and verification artifacts.
+- Legacy dependency declaration normalization if v2 imports v1-style manifests later.
+
+Status: implemented in wave 1 with `CapabilityResource`, deterministic check declarations, invoke/state/traces/autoresearch metadata, and tiny fixture coverage.
+
+### Source resolution and fetch
+
+Open points:
+
+- URL source class in addition to git/npm/local.
+- Deterministic source normalization and cache/artifact-safe slugs.
+- Resolution plan object for local path roots, git refs, npm package names, and direct URL manifests/archives.
+- Actual fetch/extract policy is still a separate security decision. It should not shell out casually.
+- Later: content-addressed cache, integrity hashes, lockfile resolved metadata, and offline install behavior.
+
+Status: deterministic planning implemented in wave 1 for git/npm/url/local without fetching or shell execution.
+
+### Materialization
+
+Open points:
+
+- Copy capability resources into `.harnessy/capabilities/<safe-id>/`.
+- Preserve manifest/resource metadata beside copied resources.
+- Validate resource paths stay inside capability root.
+- Support dry verification before materialization.
+- Wire materialization into `capability add` and `install [source]` after schema/source slices settle.
+
+Status: implemented in wave 2. `CapabilityMaterializer` materializes local capability resources into `.harnessy/capabilities/<safe-id>/resources/`, validates source/destination boundaries, preserves executable bits when requested, and is wired into `capability add` for manifests with resources.
+
+### Verification runtime
+
+Open points:
+
+- Execute manifest-defined deterministic checks through `harnessy verify`.
+- Keep checks non-agentic and deterministic.
+- Return structured check results with capability id, check id, severity, status, and message.
+- Distinguish warnings from required failures.
+- Fold dependency checks and profile checks into a single verification report shape.
+
+Status: implemented in wave 2. `CapabilityChecker` executes deterministic `path-exists`, `file-contains`, and `tool-available` checks without shell execution, and `HarnessProject.verify` includes required check failures in verification issues.
+
+### Structured output and Garden contract
+
+Open points:
+
+- `--json` or equivalent stable JSON for `verify`, `doctor`, `deps check`, and `capability inspect`.
+- Stable result envelopes: command, ok, version, target, issues, checks, dependencies, capabilities, project metadata.
+- Human output remains default.
+- Garden can read JSON without owning local Harnessy state.
+
+Status: implemented in wave 1 for `verify`, `doctor`, `deps check`, and `capability inspect` with human output preserved by default.
+
+### Profiles, context, and memory
+
+Open points:
+
+- Profiles should optionally name memory paths and output preferences while preserving current shape.
+- Verification should check profile context/memory paths deterministically.
+- Templates should explain capability contexts and Garden boundary.
+- Later: profile activation, multiple named profiles, capability-scoped context loading.
+
+Status: implemented in wave 1 with optional memory/default output/labels fields, memory path verification, and improved templates.
+
+### Product capability packs
+
+Open points:
+
+- First Garden-adjacent pack: `packages/capability-org-knowledge`.
+- Encode meeting ingest, normalized artifact, org wiki/context update, daily/weekly briefs, and GitHub issue suggestions as capability resources/templates/checks.
+- Keep connectors/auth/access control as Garden layer metadata and future runtime gates.
+- Promote selected v1 resources from `packages/capability-harnessy-v1-full` into native Harnessy services and smaller AGPL capability packs.
+
+Status: `packages/capability-org-knowledge` exists with manifest resources/checks, prompts, templates, and Garden boundary docs. `packages/capability-harnessy-v1-full` now preserves the entire v1 repository snapshot excluding only `.git`, plus direct runtime resources for flow-install, context vault, Jarvis CLI, and bootstrap docs.
+
+## Remaining v1 feature families to promote from the full pack
+
+These are now preserved in `packages/capability-harnessy-v1-full` and should be promoted into native Harnessy commands/services rather than rediscovered from scratch:
+
+- Installer behavior: hooks, script shims, global skill installation/agent registration, project script copying, and dependency checks. Saved install paths, dry-run/step-only/force modes, and managed AGENTS blocks are now native.
+- Skill lifecycle: create, validate, publish, feedback, improve, promote.
+- Product/spec flow: brainstorm, PRD, design spec, technical spec, MVP tech spec, review skills.
+- Build/review: engineer, build-e2e, code review, local run, dev container, security audit, semver, git commit, design mockup.
+- QA/regression: QA runtime, sweeps, feature catalog, browser/API integration codegen, spec-to-regression, test quality validator.
+- GitHub/CI/issues: CI logs/watch/rerun/fix, issue create, issue flow, context sync.
+- Autonomy/meta: Autoflow, goal-agent, dependency manager, tmux launcher, CTO skill.
+- Deployment: service deploy.
+- Knowledge/productivity: Jarvis, Jarvis wiki, wiki research, AnyType connector, content review, life orchestrator.
+
+## Wave 3 completion
+
+Wave 3 subagents (`aadd0012-c3de-4ef7-b4e9-781adc14a815`) failed before writing the requested files, so the deterministic local slices were completed directly:
+
+- Added `CapabilityFingerprinter` for local file/directory SHA-256 fingerprints, deterministic file entries, byte counts, executable metadata, and non-fatal skip issues.
+- Added an org-knowledge pack integration test that adds the local `packages/capability-org-knowledge` pack, materializes resources, verifies manifest checks, and confirms optional Garden connector dependencies do not fail verification.
+
+Validation after wave 3, full v1 pack, and native installer parity:
+
+- Full v1 pack live CLI test passed through `Command.runWith(rootCommand)`.
+- Native installer flags live CLI test passed through `Command.runWith(rootCommand)`.
+- Focused Biome over Harnessy files passed.
+- Core package `tsgo` passed.
+- Focused Effect Vitest suite passed: 10 files, 56 tests.
+- Root static checks passed.
+- `npm run check` passed.
+
+## Next dispatch after wave 3
+
+1. Lockfile resolved-source metadata and content hashing using `CapabilityFingerprinter`.
+2. Promote v1 hooks/script shims/global skill registration from the full pack into native services.
+3. Remote git/npm/url fetch policy and safe fetch/extract implementation.
+4. Multiple profile activation and capability-scoped context loading.
+5. Capability materialization refresh/rebuild command for duplicates or changed local sources.
+6. Garden JSON report unification for resolved-source and fingerprint metadata.
