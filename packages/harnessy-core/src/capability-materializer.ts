@@ -52,6 +52,14 @@ export class CapabilityMaterializationResult extends Schema.Class<CapabilityMate
 	issues: Schema.Array(Schema.String),
 }) {}
 
+/** Options for capability resource materialization. */
+export interface CapabilityMaterializeOptions {
+	/** Preview copies without writing files. */
+	readonly dryRun?: boolean;
+	/** Overwrite existing resource targets. */
+	readonly refresh?: boolean;
+}
+
 /** Materializes local capability manifest resources into Harnessy artifacts. */
 export class CapabilityMaterializer extends Context.Service<
 	CapabilityMaterializer,
@@ -60,6 +68,7 @@ export class CapabilityMaterializer extends Context.Service<
 		readonly materialize: (
 			paths: HarnessPaths,
 			capability: CapabilityEntry,
+			options?: CapabilityMaterializeOptions,
 		) => Effect.Effect<CapabilityMaterializationResult, HarnessError>;
 	}
 >()("@harnessy/core/CapabilityMaterializer") {
@@ -138,7 +147,10 @@ export class CapabilityMaterializer extends Context.Service<
 			const materialize = Effect.fn("CapabilityMaterializer.materialize")(function* (
 				paths: HarnessPaths,
 				capability: CapabilityEntry,
+				options: CapabilityMaterializeOptions = {},
 			) {
+				const dryRun = options.dryRun === true;
+				const refresh = options.refresh === true;
 				const artifactDir = path.join(paths.capabilitiesDir, makeCapabilitySlug(capability.id));
 				const resourcesDir = path.join(artifactDir, "resources");
 				const resources = capability.manifest?.resources ?? [];
@@ -263,9 +275,24 @@ export class CapabilityMaterializer extends Context.Service<
 						continue;
 					}
 
-					yield* makeDirectory(path.dirname(targetPath));
-					yield* copyResource(sourcePath, targetPath);
-					if (resource.executable === true) yield* markExecutable(targetPath);
+					const targetExists = yield* exists(targetPath);
+					if (targetExists && !refresh) {
+						skipped.push(
+							new CapabilitySkippedResource({
+								kind: resource.kind,
+								path: resource.path,
+								target,
+								reason: `Target already exists: ${target}. Use --refresh to overwrite it.`,
+							}),
+						);
+						continue;
+					}
+
+					if (!dryRun) {
+						yield* makeDirectory(path.dirname(targetPath));
+						yield* copyResource(sourcePath, targetPath);
+						if (resource.executable === true) yield* markExecutable(targetPath);
+					}
 					copied.push(
 						new CapabilityMaterializedResource({
 							kind: resource.kind,

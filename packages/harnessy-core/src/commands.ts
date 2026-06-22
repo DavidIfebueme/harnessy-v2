@@ -7,6 +7,7 @@ import { HarnessError } from "./errors.ts";
 import { HarnessProject, type InstallStep } from "./operations.ts";
 import {
 	renderCapabilityInspectJson,
+	renderCapabilityMaterializeJson,
 	renderDepsCheckJson,
 	renderDoctorJson,
 	renderVerifyJson,
@@ -82,6 +83,12 @@ const idOption = Options.string("id").pipe(
 const jsonOption = Options.boolean("json").pipe(
 	Options.withDefault(false),
 	Options.withDescription("Emit Garden-readable JSON instead of human text."),
+);
+
+/** Overwrite existing materialized capability resources. */
+const refreshOption = Options.boolean("refresh").pipe(
+	Options.withDefault(false),
+	Options.withDescription("Overwrite existing materialized capability resources."),
 );
 
 /** Render all file paths written by an operation. */
@@ -355,9 +362,48 @@ const capabilityAddCommand = Command.make(
 		}),
 ).pipe(Command.withDescription("Record a capability source in the Harnessy lockfile"));
 
+/** Materialize or refresh capability resources from installed capability records. */
+const capabilityMaterializeCommand = Command.make(
+	"materialize",
+	{
+		id: Args.string("id").pipe(Args.optional),
+		target: targetOption,
+		dryRun: dryRunOption,
+		refresh: refreshOption,
+		json: jsonOption,
+	},
+	({ id, target, dryRun, refresh, json }) =>
+		Effect.gen(function* () {
+			const project = yield* HarnessProject;
+			const result = yield* project.materializeCapabilities(target, Option.getOrUndefined(id), { dryRun, refresh });
+			if (json) {
+				yield* Console.log(renderCapabilityMaterializeJson(target, result));
+			} else {
+				yield* Console.log(
+					`${dryRun ? "Planned" : "Materialized"} ${result.results.length} capabilit${result.results.length === 1 ? "y" : "ies"}${refresh ? " with refresh" : ""}.`,
+				);
+				for (const materialization of result.results) {
+					yield* Console.log(
+						`${materialization.capabilityId}: copied=${materialization.copied.length} skipped=${materialization.skipped.length}`,
+					);
+				}
+			}
+			if (result.issues.length > 0) {
+				return yield* new HarnessError({
+					message: `Capability materialization reported issues: ${result.issues.join("; ")}`,
+				});
+			}
+		}),
+).pipe(Command.withDescription("Materialize or refresh installed capability resources"));
+
 /** Capability command group. */
 const capabilityCommand = Command.make("capability").pipe(
-	Command.withSubcommands([capabilityListCommand, capabilityInspectCommand, capabilityAddCommand] as const),
+	Command.withSubcommands([
+		capabilityListCommand,
+		capabilityInspectCommand,
+		capabilityAddCommand,
+		capabilityMaterializeCommand,
+	] as const),
 	Command.withDescription("Manage Harnessy capabilities"),
 );
 

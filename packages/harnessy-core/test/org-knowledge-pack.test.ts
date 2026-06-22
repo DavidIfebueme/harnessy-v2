@@ -32,6 +32,9 @@ describe("org knowledge capability pack", () => {
 				const added = yield* project.addCapability(targetDir, orgKnowledgePackRoot, undefined);
 				expect(added.added).toBe(true);
 				expect(added.capability.id).toBe("npm:@harnessy/capability-org-knowledge");
+				expect(added.capability.resolvedSource?.local?.root).toBe(orgKnowledgePackRoot);
+				expect(added.capability.fingerprint?.kind).toBe("directory");
+				expect(added.capability.fingerprint?.fileCount).toBeGreaterThan(10);
 				expect(added.capability.manifest?.resources?.length).toBeGreaterThan(0);
 				expect(added.materialization?.issues).toEqual([]);
 				expect(added.materialization?.copied.length).toBe(15);
@@ -83,6 +86,8 @@ describe("org knowledge capability pack", () => {
 				if (verifyLog === undefined) throw new Error("verify --json did not emit structured output");
 				const verify = JSON.parse(verifyLog) as StructuredVerifyOutput;
 				expect(verify.ok).toBe(true);
+				expect(verify.lockfile.capabilities[0]?.resolvedSource?.local?.root).toBe(orgKnowledgePackRoot);
+				expect(verify.lockfile.capabilities[0]?.fingerprint?.fileCount).toBeGreaterThan(10);
 				expect(verify.checks?.results.map((result) => [result.checkId, result.status])).toEqual([
 					["primary-context-present", "passed"],
 					["garden-boundary-documented", "passed"],

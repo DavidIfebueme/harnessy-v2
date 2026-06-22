@@ -4,8 +4,13 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { CapabilityChecker, type CapabilityCheckReport } from "./capability-checker.ts";
+import { CapabilityFingerprinter } from "./capability-fingerprint.ts";
 import { CapabilityMaterializer } from "./capability-materializer.ts";
-import { type AddCapabilityResult, CapabilityRegistry } from "./capability-registry.ts";
+import {
+	type AddCapabilityResult,
+	CapabilityRegistry,
+	type MaterializeCapabilitiesResult,
+} from "./capability-registry.ts";
 import type { CapabilityEntry } from "./capability-source.ts";
 import { HARNESSY_VERSION } from "./constants.ts";
 import { DependencyChecker, type DependencyReport } from "./dependency-checker.ts";
@@ -162,6 +167,12 @@ export class HarnessProject extends Context.Service<
 		readonly checkDependencies: (target: string) => Effect.Effect<DependencyReport, HarnessError>;
 		/** Read one installed capability by id. */
 		readonly inspectCapability: (target: string, id: string) => Effect.Effect<CapabilityEntry, HarnessError>;
+		/** Materialize or refresh installed capability resources. */
+		readonly materializeCapabilities: (
+			target: string,
+			id: string | undefined,
+			options: { readonly dryRun?: boolean; readonly refresh?: boolean },
+		) => Effect.Effect<MaterializeCapabilitiesResult, HarnessError>;
 		/** Record a capability source in the lockfile and emit a manifest stub for later resolvers. */
 		readonly addCapability: (
 			target: string,
@@ -423,6 +434,15 @@ export class HarnessProject extends Context.Service<
 				return yield* capabilities.inspect(resolved, id);
 			});
 
+			const materializeCapabilities = Effect.fn("HarnessProject.materializeCapabilities")(function* (
+				target: string,
+				id: string | undefined,
+				options: { readonly dryRun?: boolean; readonly refresh?: boolean },
+			) {
+				const resolved = yield* paths.resolve(target);
+				return yield* capabilities.materialize(resolved, id, options);
+			});
+
 			const addCapability = Effect.fn("HarnessProject.addCapability")(function* (
 				target: string,
 				rawSource: string,
@@ -441,6 +461,7 @@ export class HarnessProject extends Context.Service<
 				listCapabilities,
 				checkDependencies,
 				inspectCapability,
+				materializeCapabilities,
 				addCapability,
 			};
 		}),
@@ -450,6 +471,7 @@ export class HarnessProject extends Context.Service<
 	static readonly layer = HarnessProject.liveLayer.pipe(
 		Layer.provideMerge(CapabilityRegistry.layer),
 		Layer.provideMerge(CapabilityChecker.layer),
+		Layer.provideMerge(CapabilityFingerprinter.layer),
 		Layer.provideMerge(CapabilityMaterializer.layer),
 		Layer.provideMerge(DependencyChecker.layer),
 		Layer.provideMerge(LockfileStore.layer),

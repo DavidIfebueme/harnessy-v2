@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { TestConsole } from "effect/testing";
 import { Command } from "effect/unstable/cli";
 
-import { CapabilityManifest, DependencyRequirement } from "../src/capability-manifest.ts";
+import { CAPABILITY_MANIFEST_NAME, CapabilityManifest, DependencyRequirement } from "../src/capability-manifest.ts";
 import { CapabilityEntry, CapabilitySource } from "../src/capability-source.ts";
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
@@ -19,6 +19,7 @@ import {
 	renderDoctorJson,
 	renderVerifyJson,
 	type StructuredCapabilityInspectOutput,
+	type StructuredCapabilityMaterializeOutput,
 	type StructuredDepsCheckOutput,
 	type StructuredDoctorOutput,
 	type StructuredVerifyOutput,
@@ -266,6 +267,59 @@ describe("Harnessy CLI JSON output", () => {
 				const parsed = JSON.parse(jsonLog) as StructuredVerifyOutput;
 				expect(parsed.ok).toBe(false);
 				expect(parsed.issues).toContain(`Missing context file: ${targetDir}/.harnessy/context/AGENTS.md`);
+			}),
+		).pipe(
+			Effect.provide(HarnessProject.layer),
+			Effect.provide(NodeServices.layer),
+			Effect.provide(TestConsole.layer),
+		),
+	);
+
+	it.live("runs capability materialize --json through Command.runWith", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+				yield* fs.makeDirectory(`${targetDir}/json-capability/context`, { recursive: true });
+				yield* fs.writeFileString(`${targetDir}/json-capability/context/AGENTS.md`, "# JSON Capability\n");
+				yield* fs.writeFileString(
+					`${targetDir}/json-capability/${CAPABILITY_MANIFEST_NAME}`,
+					JSON.stringify({
+						id: "local:json-capability",
+						name: "JSON Capability",
+						resources: [{ kind: "context", path: "context/AGENTS.md" }],
+					}),
+				);
+
+				yield* run(["init", "--target", targetDir]);
+				yield* run(["capability", "add", "./json-capability", "--target", targetDir]);
+				yield* run([
+					"capability",
+					"materialize",
+					"local:json-capability",
+					"--refresh",
+					"--dry-run",
+					"--json",
+					"--target",
+					targetDir,
+				]);
+
+				const logs = yield* TestConsole.logLines;
+				const jsonLog = logs.find(
+					(logged): logged is string =>
+						typeof logged === "string" && logged.includes('"command": "capability materialize"'),
+				);
+				if (jsonLog === undefined) {
+					throw new Error("capability materialize --json did not emit structured output");
+				}
+				const parsed = JSON.parse(jsonLog) as StructuredCapabilityMaterializeOutput;
+				expect(parsed.ok).toBe(true);
+				expect(parsed.dryRun).toBe(true);
+				expect(parsed.refresh).toBe(true);
+				expect(parsed.results[0]?.copied.map((resource) => resource.target)).toEqual(["context/AGENTS.md"]);
+				expect(parsed.capabilities[0]?.resolvedSource?.local?.manifestPath).toContain(CAPABILITY_MANIFEST_NAME);
+				expect(parsed.capabilities[0]?.fingerprint?.fileCount).toBe(2);
 			}),
 		).pipe(
 			Effect.provide(HarnessProject.layer),

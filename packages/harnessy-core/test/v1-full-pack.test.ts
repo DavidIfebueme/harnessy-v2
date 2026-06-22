@@ -45,6 +45,9 @@ describe("Harnessy v1 full compatibility pack", () => {
 				const added = yield* project.addCapability(targetDir, v1FullPackRoot, undefined);
 				expect(added.added).toBe(true);
 				expect(added.capability.id).toBe("npm:@harnessy/capability-harnessy-v1-full");
+				expect(added.capability.resolvedSource?.local?.root).toBe(v1FullPackRoot);
+				expect(added.capability.fingerprint?.kind).toBe("directory");
+				expect(added.capability.fingerprint?.fileCount).toBeGreaterThan(1000);
 				expect(added.materialization?.issues).toEqual([]);
 				expect(added.materialization?.copied.map((resource) => resource.target)).toEqual([
 					"source",
@@ -108,6 +111,8 @@ describe("Harnessy v1 full compatibility pack", () => {
 				if (verifyLog === undefined) throw new Error("verify --json did not emit structured output");
 				const verify = JSON.parse(verifyLog) as StructuredVerifyOutput;
 				expect(verify.ok).toBe(true);
+				expect(verify.lockfile.capabilities[0]?.resolvedSource?.local?.root).toBe(v1FullPackRoot);
+				expect(verify.lockfile.capabilities[0]?.fingerprint?.fileCount).toBeGreaterThan(1000);
 				expect(verify.checks?.results.map((result) => [result.checkId, result.status])).toEqual(expectedV1Checks);
 			}),
 		).pipe(

@@ -2,15 +2,18 @@ import { FileSystem, Path } from "effect";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { CapabilityFingerprinter, type CapabilityFingerprintResult } from "./capability-fingerprint.ts";
 import { CAPABILITY_MANIFEST_NAME, parseCapabilityManifest } from "./capability-manifest.ts";
 import { type CapabilityMaterializationResult, CapabilityMaterializer } from "./capability-materializer.ts";
 import {
 	CapabilityEntry,
+	CapabilityFingerprintMetadata,
 	type CapabilitySource,
 	defaultCapabilityName,
 	localCapabilityPath,
 	makeCapabilityId,
 	parseCapabilitySource,
+	planCapabilityResolution,
 } from "./capability-source.ts";
 import { causeMessage, HarnessError } from "./errors.ts";
 import { formatManifestJson, HarnessLockfile } from "./lockfile.ts";
@@ -29,6 +32,20 @@ export interface AddCapabilityResult {
 	readonly materialization: CapabilityMaterializationResult | null;
 }
 
+/** Result of materializing or refreshing one or more installed capabilities. */
+export interface MaterializeCapabilitiesResult {
+	/** Whether this run only previewed writes. */
+	readonly dryRun: boolean;
+	/** Whether existing artifact targets were eligible for overwrite. */
+	readonly refresh: boolean;
+	/** Materialization reports by capability. */
+	readonly results: ReadonlyArray<CapabilityMaterializationResult>;
+	/** Updated capability entries with refreshed provenance/fingerprints. */
+	readonly capabilities: ReadonlyArray<CapabilityEntry>;
+	/** User-facing issues from materialization and fingerprinting. */
+	readonly issues: ReadonlyArray<string>;
+}
+
 /** Manages capability records, manifests, and local path verification. */
 export class CapabilityRegistry extends Context.Service<
 	CapabilityRegistry,
@@ -43,6 +60,12 @@ export class CapabilityRegistry extends Context.Service<
 			rawSource: string,
 			rawId: string | undefined,
 		) => Effect.Effect<AddCapabilityResult, HarnessError>;
+		/** Materialize or refresh installed capability resources. */
+		readonly materialize: (
+			paths: HarnessPaths,
+			id: string | undefined,
+			options: { readonly dryRun?: boolean; readonly refresh?: boolean },
+		) => Effect.Effect<MaterializeCapabilitiesResult, HarnessError>;
 		/** Verify capability records that can be checked locally. */
 		readonly verify: (
 			paths: HarnessPaths,
@@ -58,6 +81,7 @@ export class CapabilityRegistry extends Context.Service<
 			const path = yield* Path.Path;
 			const lockfiles = yield* LockfileStore;
 			const materializer = yield* CapabilityMaterializer;
+			const fingerprinter = yield* CapabilityFingerprinter;
 
 			/** Convert platform failures into the Harnessy typed error channel. */
 			const mapPlatformError = (action: string, cause: unknown): HarnessError =>
@@ -91,11 +115,51 @@ export class CapabilityRegistry extends Context.Service<
 					return yield* parseCapabilityManifest(raw, manifestPath);
 				});
 
+			/** Summarize a potentially large deterministic fingerprint for lockfile storage. */
+			const fingerprintMetadata = (fingerprint: CapabilityFingerprintResult) =>
+				new CapabilityFingerprintMetadata({
+					root: fingerprint.root,
+					kind: fingerprint.kind,
+					sha256: fingerprint.sha256,
+					bytes: fingerprint.bytes,
+					fileCount: fingerprint.kind === "file" ? 1 : fingerprint.files.length,
+					issues: [...fingerprint.issues],
+				});
+
+			/** Add deterministic source and fingerprint metadata to a capability entry. */
+			const withProvenance = (paths: HarnessPaths, capability: CapabilityEntry) =>
+				Effect.gen(function* () {
+					const resolvedSource = yield* planCapabilityResolution(
+						paths.targetDir,
+						capability.source,
+						capability.id,
+					).pipe(Effect.provideService(Path.Path, path));
+					const localRootExists =
+						resolvedSource.local === null
+							? false
+							: yield* fs
+									.exists(resolvedSource.local.root)
+									.pipe(
+										Effect.mapError((cause) =>
+											mapPlatformError(`Could not inspect ${resolvedSource.local?.root}`, cause),
+										),
+									);
+					const fingerprint =
+						resolvedSource.local === null || !localRootExists
+							? undefined
+							: fingerprintMetadata(yield* fingerprinter.fingerprintPath(resolvedSource.local.root));
+					return new CapabilityEntry({
+						...capability,
+						resolvedSource,
+						...(fingerprint === undefined ? {} : { fingerprint }),
+					});
+				});
+
 			/** Materialize local capability resources into the Harnessy artifact directory for new entries. */
 			const materializeCapability = (paths: HarnessPaths, capability: CapabilityEntry) =>
 				capability.manifest?.resources === undefined
 					? Effect.succeed(null)
-					: materializer.materialize(paths, capability);
+					: materializer.materialize(paths, capability, { refresh: true });
 
 			/** Write an adjacent per-capability manifest for easy inspection by humans and agents. */
 			const writeCapabilityManifest = (paths: HarnessPaths, capability: CapabilityEntry) =>
@@ -161,12 +225,15 @@ export class CapabilityRegistry extends Context.Service<
 				}
 
 				const manifestFields = manifest === null ? {} : { manifest };
-				const capability = new CapabilityEntry({
-					id,
-					source,
-					addedAt: new Date().toISOString(),
-					...manifestFields,
-				});
+				const capability = yield* withProvenance(
+					paths,
+					new CapabilityEntry({
+						id,
+						source,
+						addedAt: new Date().toISOString(),
+						...manifestFields,
+					}),
+				);
 				const nextLockfile = new HarnessLockfile({
 					...lockfile,
 					capabilities: [...lockfile.capabilities, capability],
@@ -175,6 +242,55 @@ export class CapabilityRegistry extends Context.Service<
 				const manifestPath = yield* writeCapabilityManifest(paths, capability);
 				const materialization = yield* materializeCapability(paths, capability);
 				return { capability, added: true, manifestPath, materialization } satisfies AddCapabilityResult;
+			});
+
+			const materialize = Effect.fn("CapabilityRegistry.materialize")(function* (
+				paths: HarnessPaths,
+				id: string | undefined,
+				options: { readonly dryRun?: boolean; readonly refresh?: boolean },
+			) {
+				const dryRun = options.dryRun === true;
+				const refresh = options.refresh === true;
+				const lockfile = yield* lockfiles.read(paths);
+				const selected =
+					id === undefined
+						? lockfile.capabilities
+						: lockfile.capabilities.filter((capability) => capability.id === id);
+				if (id !== undefined && selected.length === 0) {
+					return yield* new HarnessError({ message: `Capability not found: ${id}` });
+				}
+
+				const updatedById = new Map<string, CapabilityEntry>();
+				const results: Array<CapabilityMaterializationResult> = [];
+				const issues: Array<string> = [];
+
+				for (const capability of selected) {
+					const updated = yield* withProvenance(paths, capability);
+					updatedById.set(updated.id, updated);
+					const result = yield* materializer.materialize(paths, updated, { dryRun, refresh });
+					results.push(result);
+					issues.push(...result.issues);
+				}
+
+				const nextCapabilities = lockfile.capabilities.map(
+					(capability) => updatedById.get(capability.id) ?? capability,
+				);
+				const updatedCapabilities = nextCapabilities.filter((capability) => updatedById.has(capability.id));
+				if (!dryRun) {
+					const nextLockfile = new HarnessLockfile({ ...lockfile, capabilities: nextCapabilities });
+					yield* lockfiles.write(paths, nextLockfile);
+					for (const capability of updatedCapabilities) {
+						yield* writeCapabilityManifest(paths, capability);
+					}
+				}
+
+				return {
+					dryRun,
+					refresh,
+					results,
+					capabilities: updatedCapabilities,
+					issues,
+				} satisfies MaterializeCapabilitiesResult;
 			});
 
 			const verify = Effect.fn("CapabilityRegistry.verify")(function* (
@@ -189,7 +305,7 @@ export class CapabilityRegistry extends Context.Service<
 				return issues;
 			});
 
-			return { list, inspect, add, verify };
+			return { list, inspect, add, materialize, verify };
 		}),
 	);
 }
