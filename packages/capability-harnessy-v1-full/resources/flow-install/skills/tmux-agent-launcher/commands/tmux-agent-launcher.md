@@ -1,0 +1,191 @@
+---
+description: Launch Claude, OpenCode, or Codex in a named tmux session
+argument-hint: "--runner <claude|opencode|codex> <session-name> [options] [--permission-mode bypass|default] [-- <runner-args>...]"
+---
+
+# Command Contract: tmux-agent-launcher
+
+## Purpose
+
+Start `claude`, `opencode`, or `codex` in a new tmux session, or attach to an existing named session, so users or agents can keep long-running interactive CLIs isolated by session name.
+
+## Ownership
+
+- Owner: julian
+- Source of truth: `${AGENTS_SKILLS_ROOT}/tmux-agent-launcher/scripts/tmux-agent-launcher`
+- Wrapper layer: skill
+
+## Invocation
+
+```bash
+tmux-agent-launcher --runner <claude|opencode|codex> <session-name> [options] [-- <runner-args>...]
+tmux-agent-launcher attach <session-name> [--dry-run] [--json]
+tmux-agent-launcher list [--json]
+t --runner <claude|opencode|codex> <session-name> [options] [-- <runner-args>...]
+t attach <session-name> [--dry-run] [--json]
+t list [--json]
+```
+
+This command is intended to be installed into the user-local bin directory (`$XDG_BIN_HOME` or `~/.local/bin`) by Harnessy so it is runnable directly from the terminal when that directory is on `PATH`.
+Harnessy also installs a short alias command, `t`, from the same skill.
+
+For the `opencode` runner, the launcher injects `--log-level WARN` by default to avoid pathological INFO log growth unless you explicitly pass your own `--log-level` flag after `--`.
+
+Permission bypass mode is enabled by default from the per-user Harnessy install config at `~/.config/harnessy/tmux-agent-launcher.json`. A launch can opt out with `--permission-mode default` or `--no-skip-permissions`.
+
+Bypass mode maps to each runner's native flag:
+
+| Runner | Bypass mapping |
+|---|---|
+| `claude` | `--permission-mode bypassPermissions` |
+| `codex` | `--dangerously-bypass-approvals-and-sandbox` |
+| `opencode` | `run --interactive --dangerously-skip-permissions` |
+
+## Arguments
+
+| Name | Required | Description |
+|---|---|---|
+| `session-name` | yes | Name of the tmux session to create |
+
+## Flags
+
+| Flag | Required | Description |
+|---|---|---|
+| `--runner <name>` | yes | Runner to launch: `claude`, `opencode`, or `codex` |
+| `--cwd <path>` | no | Working directory for the tmux session; defaults to the current directory |
+| `--permission-mode <mode>` | no | Permission behavior: `bypass` or `default`. Resolution order: CLI flag, `TMUX_AGENT_LAUNCHER_PERMISSION_MODE`, user config, built-in `bypass` |
+| `--skip-permissions` | no | Shortcut for `--permission-mode bypass` |
+| `--no-skip-permissions` | no | Shortcut for `--permission-mode default` |
+| `--attach` | no | Attach immediately after creating the session |
+| `--dry-run` | no | Print the resolved launch plan without creating a tmux session |
+| `--json` | no | Emit machine-readable JSON |
+| `--help` | no | Show usage |
+| `-- <args>...` | no | Pass all remaining arguments to the runner command (e.g., `-- --prompt "do X"`) |
+
+## Modes
+
+- `launch` (default): create a new named tmux session and start the selected runner inside it.
+- `attach`: attach to an already-running tmux session by name.
+- `list`: list current tmux session names.
+
+## Environment
+
+| Variable | Required | Description |
+|---|---|---|
+| `TMUX_AGENT_LAUNCHER_CONFIG` | no | Override the config file path; defaults to `${XDG_CONFIG_HOME:-~/.config}/harnessy/tmux-agent-launcher.json` |
+| `TMUX_AGENT_LAUNCHER_PERMISSION_MODE` | no | Override the configured permission mode for this process: `bypass` or `default` |
+| `TMUX_AGENT_LAUNCHER_CLAUDE_CMD` | no | Override the command used for the `claude` runner |
+| `TMUX_AGENT_LAUNCHER_OPENCODE_CMD` | no | Override the command used for the `opencode` runner |
+| `TMUX_AGENT_LAUNCHER_CODEX_CMD` | no | Override the command used for the `codex` runner |
+
+## User Config
+
+Harnessy install creates this per-user file if it is missing:
+
+```json
+{
+  "permissionMode": "bypass"
+}
+```
+
+Set `permissionMode` to `default` to make permission prompts the default for this user while retaining per-launch opt-in through `--skip-permissions`.
+
+## Output
+
+### Human mode
+
+Prints a concise success message with the session name, runner, and working directory. In `--dry-run`, prints the resolved tmux command plan.
+
+### JSON mode
+
+```json
+{
+  "ok": true,
+  "action": "launch",
+  "runner": "claude",
+  "session": "agent-name",
+  "cwd": "/abs/path",
+  "permission_mode": "bypass",
+  "permission_mode_source": "config",
+  "attach": false,
+  "dry_run": false,
+  "command": ["tmux", "new-session", "-d", "-s", "agent-name", "-c", "/abs/path", "bash", "-lc", "claude --permission-mode bypassPermissions --prompt 'review the PR'"]
+}
+```
+
+Attach dry-run example:
+
+```json
+{
+  "ok": true,
+  "action": "attach",
+  "session": "agent-name",
+  "dry_run": true,
+  "command": ["tmux", "attach-session", "-t", "agent-name"]
+}
+```
+
+List example:
+
+```json
+{
+  "ok": true,
+  "action": "list",
+  "sessions": ["agent-name", "reviewer"]
+}
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Generic failure |
+| `2` | Invalid input or unsupported runner |
+| `3` | Missing dependency (`tmux` or runner command) |
+| `4` | Session conflict or missing target session |
+
+## Side Effects
+
+- Creates a tmux session.
+- Starts a local CLI process inside that tmux session.
+- Attaches the current terminal to an existing tmux session in `attach` mode.
+- Reads the active tmux session list in `list` mode.
+
+## Examples
+
+```bash
+tmux-agent-launcher --runner claude reviewer
+tmux-agent-launcher --runner opencode planner --cwd /tmp/project --attach
+tmux-agent-launcher --runner codex pairer
+tmux-agent-launcher --runner codex pairer --permission-mode default
+tmux-agent-launcher --runner claude qa-agent --dry-run --json
+tmux-agent-launcher attach reviewer
+tmux-agent-launcher attach reviewer --dry-run --json
+tmux-agent-launcher list
+tmux-agent-launcher list --json
+t --runner claude reviewer
+t --runner claude reviewer -- --prompt "review the PR" --allowedTools "Read,Bash"
+t --runner opencode worker -- --model sonnet
+t --runner codex worker -- --model gpt-5.4
+t --runner opencode worker -- --log-level ERROR --model sonnet
+t --runner claude worker --no-skip-permissions
+t list
+```
+
+## Smoke Test
+
+```bash
+tmux-agent-launcher --runner claude demo-agent --dry-run --json
+t --runner claude demo-agent --dry-run --json
+```
+
+## Feedback Capture
+
+After completion, ask the user: **"Any feedback on this run? (skip to finish)"**
+If provided, capture it:
+```bash
+python3 "${AGENTS_SKILLS_ROOT}/_shared/trace_capture.py" capture \
+    --skill "tmux-agent-launcher" --gate "run_retrospective" --gate-type "retrospective" \
+    --outcome "approved" --feedback "<user's feedback>"
+```
