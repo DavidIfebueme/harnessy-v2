@@ -11,7 +11,17 @@ import type {
 	DependencyKind,
 	DependencyRequirement,
 } from "./capability-manifest.ts";
-import type { CapabilityEntry, CapabilitySourceType } from "./capability-source.ts";
+import type { CapabilityMaterializationResult } from "./capability-materializer.ts";
+import type { MaterializeCapabilitiesResult } from "./capability-registry.ts";
+import type {
+	CapabilityEntry,
+	CapabilityFingerprintMetadata,
+	CapabilityLocalResolution,
+	CapabilityRemoteFetch,
+	CapabilityResolutionPlan,
+	CapabilitySourceType,
+	CapabilityUrlArtifactKind,
+} from "./capability-source.ts";
 import type { DependencyCheckResult, DependencyReport, DependencyStatus } from "./dependency-checker.ts";
 import type { DoctorResult, VerifyResult } from "./operations.ts";
 import type { MonorepoType, PackageManager, WorkspaceKind } from "./project-detection.ts";
@@ -22,6 +32,66 @@ export interface StructuredCapabilitySource {
 	readonly type: CapabilitySourceType;
 	/** Normalized source value recorded in the lockfile. */
 	readonly value: string;
+}
+
+/** Local source-resolution payload emitted in structured command output. */
+export interface StructuredCapabilityLocalResolution {
+	/** Absolute local capability root inspected for a manifest. */
+	readonly root: string;
+	/** Absolute expected manifest path below the local root. */
+	readonly manifestPath: string;
+}
+
+/** Remote fetch payload emitted in structured command output. */
+export interface StructuredCapabilityRemoteFetch {
+	/** Fetch mechanism required to materialize the capability. */
+	readonly type: CapabilityRemoteFetch["type"];
+	/** Fetch locator with refs/fragments split where applicable. */
+	readonly locator: string;
+	/** Git ref or URL fragment selector, when present. */
+	readonly ref: string | null;
+	/** Parsed npm package name for npm sources. */
+	readonly packageName?: string;
+	/** Parsed npm version/range/tag specifier for npm sources. */
+	readonly packageSpec?: string;
+	/** URL payload class for URL sources. */
+	readonly urlKind?: CapabilityUrlArtifactKind;
+}
+
+/** Resolved source payload emitted in structured command output. */
+export interface StructuredCapabilityResolvedSource {
+	/** Caller-provided parsed source. */
+	readonly source: StructuredCapabilitySource;
+	/** Canonical source identity used for cache keys. */
+	readonly normalizedSource: StructuredCapabilitySource;
+	/** Stable capability id used by this resolution plan. */
+	readonly id: string;
+	/** Path-component-safe slug derived from the capability id. */
+	readonly slug: string;
+	/** Cache-safe slug derived from source identity. */
+	readonly cacheSlug: string;
+	/** Whether remote content must be fetched before materialization. */
+	readonly requiresFetch: boolean;
+	/** Local resolution metadata, when source is local. */
+	readonly local: StructuredCapabilityLocalResolution | null;
+	/** Remote fetch metadata, when source is remote. */
+	readonly remote: StructuredCapabilityRemoteFetch | null;
+}
+
+/** Fingerprint payload emitted in structured command output. */
+export interface StructuredCapabilityFingerprint {
+	/** Absolute local root that was fingerprinted. */
+	readonly root: string;
+	/** File or directory fingerprint kind. */
+	readonly kind: CapabilityFingerprintMetadata["kind"];
+	/** Stable SHA-256 digest. */
+	readonly sha256: string;
+	/** Sum of included file byte lengths. */
+	readonly bytes: number;
+	/** Count of deterministic file entries included. */
+	readonly fileCount: number;
+	/** Non-fatal skipped paths such as symlinks. */
+	readonly issues: ReadonlyArray<string>;
 }
 
 /** Capability manifest dependency payload emitted in structured command output. */
@@ -166,6 +236,10 @@ export interface StructuredCapability {
 	readonly id: string;
 	/** Where Harnessy should resolve or fetch the capability from. */
 	readonly source: StructuredCapabilitySource;
+	/** Deterministic source-resolution metadata recorded at add/materialize time. */
+	readonly resolvedSource?: StructuredCapabilityResolvedSource;
+	/** Local content fingerprint metadata recorded for local capability sources. */
+	readonly fingerprint?: StructuredCapabilityFingerprint;
 	/** ISO timestamp for when the capability was recorded. */
 	readonly addedAt: string;
 	/** Optional metadata read from a capability-owned manifest file. */
@@ -386,6 +460,66 @@ export interface StructuredCapabilityInspectOutput {
 	readonly capability: StructuredCapability;
 }
 
+/** Materialized resource payload emitted in structured command output. */
+export interface StructuredCapabilityMaterializedResource {
+	/** Resource family declared by the capability manifest. */
+	readonly kind: string;
+	/** Capability-root-relative source path declared by the manifest. */
+	readonly path: string;
+	/** Artifact resources-relative target path used for materialization. */
+	readonly target: string;
+	/** Absolute local source path copied from. */
+	readonly sourcePath: string;
+	/** Absolute artifact path copied to. */
+	readonly targetPath: string;
+}
+
+/** Skipped resource payload emitted in structured command output. */
+export interface StructuredCapabilitySkippedResource {
+	/** Resource family declared by the capability manifest. */
+	readonly kind: string;
+	/** Capability-root-relative source path declared by the manifest. */
+	readonly path: string;
+	/** Artifact resources-relative target path that would have been used. */
+	readonly target: string;
+	/** User-facing reason the resource was skipped. */
+	readonly reason: string;
+}
+
+/** Materialization result payload emitted in structured command output. */
+export interface StructuredCapabilityMaterializationResult {
+	/** Stable capability id from the lockfile entry. */
+	readonly capabilityId: string;
+	/** Absolute artifact directory for this capability. */
+	readonly artifactDir: string;
+	/** Resources copied or planned during this pass. */
+	readonly copied: ReadonlyArray<StructuredCapabilityMaterializedResource>;
+	/** Resources intentionally skipped. */
+	readonly skipped: ReadonlyArray<StructuredCapabilitySkippedResource>;
+	/** User-facing materialization issues gathered during this pass. */
+	readonly issues: ReadonlyArray<string>;
+}
+
+/** Structured JSON envelope for `harnessy capability materialize --json`. */
+export interface StructuredCapabilityMaterializeOutput {
+	/** Command name. */
+	readonly command: "capability materialize";
+	/** True when materialization found no issues. */
+	readonly ok: boolean;
+	/** CLI target argument supplied to the command. */
+	readonly target: string;
+	/** Whether this run only previewed writes. */
+	readonly dryRun: boolean;
+	/** Whether existing artifact targets were eligible for overwrite. */
+	readonly refresh: boolean;
+	/** Materialization reports by capability. */
+	readonly results: ReadonlyArray<StructuredCapabilityMaterializationResult>;
+	/** Updated capability entries with refreshed provenance/fingerprints. */
+	readonly capabilities: ReadonlyArray<StructuredCapability>;
+	/** User-facing issues from materialization and fingerprinting. */
+	readonly issues: ReadonlyArray<string>;
+}
+
 const optionalArray = <T>(values: ReadonlyArray<T> | undefined): ReadonlyArray<T> | undefined =>
 	values === undefined ? undefined : [...values];
 
@@ -448,6 +582,45 @@ const autoresearchPayload = (
 	...(autoresearch.queries === undefined ? {} : { queries: optionalArray(autoresearch.queries) }),
 });
 
+const sourcePayload = (source: CapabilityEntry["source"]): StructuredCapabilitySource => ({
+	type: source.type,
+	value: source.value,
+});
+
+const localResolutionPayload = (local: CapabilityLocalResolution): StructuredCapabilityLocalResolution => ({
+	root: local.root,
+	manifestPath: local.manifestPath,
+});
+
+const remoteFetchPayload = (remote: CapabilityRemoteFetch): StructuredCapabilityRemoteFetch => ({
+	type: remote.type,
+	locator: remote.locator,
+	ref: remote.ref,
+	...(remote.packageName === undefined ? {} : { packageName: remote.packageName }),
+	...(remote.packageSpec === undefined ? {} : { packageSpec: remote.packageSpec }),
+	...(remote.urlKind === undefined ? {} : { urlKind: remote.urlKind }),
+});
+
+const resolvedSourcePayload = (resolvedSource: CapabilityResolutionPlan): StructuredCapabilityResolvedSource => ({
+	source: sourcePayload(resolvedSource.source),
+	normalizedSource: sourcePayload(resolvedSource.normalizedSource),
+	id: resolvedSource.id,
+	slug: resolvedSource.slug,
+	cacheSlug: resolvedSource.cacheSlug,
+	requiresFetch: resolvedSource.requiresFetch,
+	local: resolvedSource.local === null ? null : localResolutionPayload(resolvedSource.local),
+	remote: resolvedSource.remote === null ? null : remoteFetchPayload(resolvedSource.remote),
+});
+
+const fingerprintPayload = (fingerprint: CapabilityFingerprintMetadata): StructuredCapabilityFingerprint => ({
+	root: fingerprint.root,
+	kind: fingerprint.kind,
+	sha256: fingerprint.sha256,
+	bytes: fingerprint.bytes,
+	fileCount: fingerprint.fileCount,
+	issues: [...fingerprint.issues],
+});
+
 const manifestPayload = (manifest: CapabilityManifest): StructuredCapabilityManifest => ({
 	id: manifest.id,
 	name: manifest.name,
@@ -475,10 +648,11 @@ const manifestPayload = (manifest: CapabilityManifest): StructuredCapabilityMani
 
 const capabilityPayload = (capability: CapabilityEntry): StructuredCapability => ({
 	id: capability.id,
-	source: {
-		type: capability.source.type,
-		value: capability.source.value,
-	},
+	source: sourcePayload(capability.source),
+	...(capability.resolvedSource === undefined
+		? {}
+		: { resolvedSource: resolvedSourcePayload(capability.resolvedSource) }),
+	...(capability.fingerprint === undefined ? {} : { fingerprint: fingerprintPayload(capability.fingerprint) }),
 	addedAt: capability.addedAt,
 	...(capability.manifest === undefined ? {} : { manifest: manifestPayload(capability.manifest) }),
 });
@@ -491,6 +665,35 @@ const dependencyCheckPayload = (result: DependencyCheckResult): StructuredDepend
 	status: result.status,
 	...(result.command === undefined ? {} : { command: result.command }),
 	...(result.installCommand === undefined ? {} : { installCommand: result.installCommand }),
+});
+
+const materializedResourcePayload = (
+	resource: CapabilityMaterializationResult["copied"][number],
+): StructuredCapabilityMaterializedResource => ({
+	kind: resource.kind,
+	path: resource.path,
+	target: resource.target,
+	sourcePath: resource.sourcePath,
+	targetPath: resource.targetPath,
+});
+
+const skippedResourcePayload = (
+	resource: CapabilityMaterializationResult["skipped"][number],
+): StructuredCapabilitySkippedResource => ({
+	kind: resource.kind,
+	path: resource.path,
+	target: resource.target,
+	reason: resource.reason,
+});
+
+const materializationResultPayload = (
+	result: CapabilityMaterializationResult,
+): StructuredCapabilityMaterializationResult => ({
+	capabilityId: result.capabilityId,
+	artifactDir: result.artifactDir,
+	copied: result.copied.map(materializedResourcePayload),
+	skipped: result.skipped.map(skippedResourcePayload),
+	issues: [...result.issues],
 });
 
 const capabilityCheckResultPayload = (result: CapabilityCheckResult): StructuredCapabilityCheckResult => ({
@@ -624,3 +827,22 @@ export const capabilityInspectJsonOutput = (
 /** Render the stable structured JSON text for `harnessy capability inspect --json`. */
 export const renderCapabilityInspectJson = (target: string, capability: CapabilityEntry): string =>
 	renderStructuredJson(capabilityInspectJsonOutput(target, capability));
+
+/** Build the stable structured payload for `harnessy capability materialize --json`. */
+export const capabilityMaterializeJsonOutput = (
+	target: string,
+	result: MaterializeCapabilitiesResult,
+): StructuredCapabilityMaterializeOutput => ({
+	command: "capability materialize",
+	ok: result.issues.length === 0,
+	target,
+	dryRun: result.dryRun,
+	refresh: result.refresh,
+	results: result.results.map(materializationResultPayload),
+	capabilities: result.capabilities.map(capabilityPayload),
+	issues: [...result.issues],
+});
+
+/** Render the stable structured JSON text for `harnessy capability materialize --json`. */
+export const renderCapabilityMaterializeJson = (target: string, result: MaterializeCapabilitiesResult): string =>
+	renderStructuredJson(capabilityMaterializeJsonOutput(target, result));

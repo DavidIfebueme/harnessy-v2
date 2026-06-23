@@ -74,8 +74,13 @@ Ported into native v2 manifest format:
 Remaining:
 
 - Remote git/npm/url fetch and extraction policy.
-- Content-addressed cache and resolved-source lockfile metadata.
-- Refresh/re-materialize command for changed local sources.
+- Content-addressed cache and offline install behavior for fetched sources.
+
+Done in PR #2:
+
+- Persisted `resolvedSource` metadata in lockfile capability entries.
+- Persisted local content fingerprint summaries in lockfile capability entries.
+- Added `harnessy capability materialize [id] --refresh --dry-run --json`.
 
 ## Phase 4 — Verification runtime
 
@@ -130,7 +135,6 @@ Promote from `packages/capability-harnessy-v1-full/resources/source` into native
 
 ## Immediate next work
 
-1. Add lockfile resolved-source metadata and content fingerprints for materialized packs.
-2. Add `capability materialize` / refresh command.
-3. Promote v1 hooks/script shims/global skill registration from the full pack into native services.
-4. Implement safe remote git/npm/url fetch policy and extraction.
+1. Promote v1 hooks/script shims/global skill registration from the full pack into native services.
+2. Implement safe remote git/npm/url fetch policy and extraction.
+3. Add multiple profile activation and capability-scoped context loading.

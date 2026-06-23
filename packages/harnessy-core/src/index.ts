@@ -39,10 +39,11 @@ export {
 	CapabilityMaterializer,
 	CapabilitySkippedResource,
 } from "./capability-materializer.ts";
-export type { AddCapabilityResult } from "./capability-registry.ts";
+export type { AddCapabilityResult, MaterializeCapabilitiesResult } from "./capability-registry.ts";
 export { CapabilityRegistry } from "./capability-registry.ts";
 export {
 	CapabilityEntry,
+	CapabilityFingerprintMetadata,
 	CapabilityLocalResolution,
 	CapabilityRemoteFetch,
 	CapabilityRemoteFetchType,
@@ -109,10 +110,18 @@ export type {
 	StructuredCapabilityCheck,
 	StructuredCapabilityCheckReport,
 	StructuredCapabilityCheckResult,
+	StructuredCapabilityFingerprint,
 	StructuredCapabilityInspectOutput,
 	StructuredCapabilityInvoke,
+	StructuredCapabilityLocalResolution,
 	StructuredCapabilityManifest,
+	StructuredCapabilityMaterializationResult,
+	StructuredCapabilityMaterializedResource,
+	StructuredCapabilityMaterializeOutput,
+	StructuredCapabilityRemoteFetch,
+	StructuredCapabilityResolvedSource,
 	StructuredCapabilityResource,
+	StructuredCapabilitySkippedResource,
 	StructuredCapabilitySource,
 	StructuredCapabilityStateDeclaration,
 	StructuredCapabilityTraceDeclaration,
@@ -130,9 +139,11 @@ export type {
 } from "./structured-output.ts";
 export {
 	capabilityInspectJsonOutput,
+	capabilityMaterializeJsonOutput,
 	depsCheckJsonOutput,
 	doctorJsonOutput,
 	renderCapabilityInspectJson,
+	renderCapabilityMaterializeJson,
 	renderDepsCheckJson,
 	renderDoctorJson,
 	renderVerifyJson,

@@ -498,8 +498,14 @@ describe("HarnessProject", () => {
 				);
 
 				const added = yield* project.addCapability(targetDir, "./resource-capability", undefined);
+				expect(added.capability.resolvedSource?.local?.manifestPath).toContain(CAPABILITY_MANIFEST_NAME);
+				expect(added.capability.fingerprint?.kind).toBe("directory");
+				expect(added.capability.fingerprint?.fileCount).toBe(2);
 				expect(added.materialization?.copied.map((resource) => resource.target)).toEqual(["context/AGENTS.md"]);
 				expect(added.materialization?.issues).toEqual([]);
+
+				const lockfile = yield* project.inspectCapability(targetDir, "local:resource-capability");
+				expect(lockfile.fingerprint?.sha256).toBe(added.capability.fingerprint?.sha256);
 
 				const materialized = yield* fs.readFileString(
 					`${targetDir}/.harnessy/capabilities/local-resource-capability/resources/context/AGENTS.md`,
@@ -511,6 +517,56 @@ describe("HarnessProject", () => {
 					["context-present", "passed"],
 				]);
 				expect(verify.issues).toEqual([]);
+			}),
+		),
+	);
+
+	it.effect("refreshes materialized resources and fingerprints on demand", () =>
+		provideLive(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				yield* project.init(targetDir, false);
+				yield* fs.makeDirectory(`${targetDir}/refresh-capability/context`, { recursive: true });
+				yield* fs.writeFileString(`${targetDir}/refresh-capability/context/AGENTS.md`, "# Before\n");
+				yield* fs.writeFileString(
+					`${targetDir}/refresh-capability/${CAPABILITY_MANIFEST_NAME}`,
+					JSON.stringify({
+						id: "local:refresh-capability",
+						name: "Refresh Capability",
+						resources: [{ kind: "context", path: "context/AGENTS.md" }],
+					}),
+				);
+
+				const added = yield* project.addCapability(targetDir, "./refresh-capability", undefined);
+				const originalFingerprint = added.capability.fingerprint?.sha256;
+				yield* fs.writeFileString(`${targetDir}/refresh-capability/context/AGENTS.md`, "# After\n");
+
+				const dryRun = yield* project.materializeCapabilities(targetDir, "local:refresh-capability", {
+					dryRun: true,
+					refresh: true,
+				});
+				expect(dryRun.dryRun).toBe(true);
+				expect(dryRun.results[0]?.copied.map((resource) => resource.target)).toEqual(["context/AGENTS.md"]);
+				expect(dryRun.capabilities[0]?.fingerprint?.sha256).not.toBe(originalFingerprint);
+				expect(
+					yield* fs.readFileString(
+						`${targetDir}/.harnessy/capabilities/local-refresh-capability/resources/context/AGENTS.md`,
+					),
+				).toBe("# Before\n");
+
+				const refreshed = yield* project.materializeCapabilities(targetDir, "local:refresh-capability", {
+					refresh: true,
+				});
+				expect(refreshed.issues).toEqual([]);
+				expect(
+					yield* fs.readFileString(
+						`${targetDir}/.harnessy/capabilities/local-refresh-capability/resources/context/AGENTS.md`,
+					),
+				).toBe("# After\n");
+				const inspected = yield* project.inspectCapability(targetDir, "local:refresh-capability");
+				expect(inspected.fingerprint?.sha256).toBe(refreshed.capabilities[0]?.fingerprint?.sha256);
 			}),
 		),
 	);
@@ -554,6 +610,9 @@ describe("HarnessProject", () => {
 
 				expect(duplicate.added).toBe(false);
 				expect(duplicate.manifestPath).not.toBeNull();
+				expect(duplicate.capability.resolvedSource?.local?.manifestPath).toContain(CAPABILITY_MANIFEST_NAME);
+				expect(duplicate.capability.fingerprint?.kind).toBe("directory");
+				expect(duplicate.capability.fingerprint?.fileCount).toBe(1);
 				expect(duplicate.materialization?.copied.map((resource) => resource.target)).toEqual(["context/AGENTS.md"]);
 				expect(yield* fs.readFileString(artifactPath)).toBe("# Retry Capability\n");
 			}),

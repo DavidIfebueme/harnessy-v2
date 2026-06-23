@@ -77,12 +77,34 @@ export class CapabilityResolutionPlan extends Schema.Class<CapabilityResolutionP
 	remote: Schema.NullOr(CapabilityRemoteFetch),
 }) {}
 
+/** Stable fingerprint metadata persisted in the lockfile without listing every file. */
+export class CapabilityFingerprintMetadata extends Schema.Class<CapabilityFingerprintMetadata>(
+	"CapabilityFingerprintMetadata",
+)({
+	/** Absolute local root that was fingerprinted. */
+	root: Schema.String,
+	/** File or directory fingerprint kind. */
+	kind: Schema.Literals(["file", "directory"]),
+	/** Stable SHA-256 digest for the file or deterministic directory tree. */
+	sha256: Schema.String,
+	/** Sum of included file byte lengths. */
+	bytes: Schema.Number,
+	/** Count of deterministic file entries included in the fingerprint. */
+	fileCount: Schema.Number,
+	/** Non-fatal skipped paths such as symlinks. */
+	issues: Schema.Array(Schema.String),
+}) {}
+
 /** A lockfile entry for one installed or recorded capability. */
 export class CapabilityEntry extends Schema.Class<CapabilityEntry>("CapabilityEntry")({
 	/** Stable lockfile identifier, namespaced by source type. */
 	id: Schema.String,
 	/** Where Harnessy should resolve or fetch the capability from. */
 	source: CapabilitySource,
+	/** Deterministic source-resolution metadata recorded at add/materialize time. */
+	resolvedSource: Schema.optional(CapabilityResolutionPlan),
+	/** Local content fingerprint metadata recorded for local capability sources. */
+	fingerprint: Schema.optional(CapabilityFingerprintMetadata),
 	/** ISO timestamp for when the capability was recorded. */
 	addedAt: Schema.String,
 	/** Optional metadata read from a capability-owned manifest file. */

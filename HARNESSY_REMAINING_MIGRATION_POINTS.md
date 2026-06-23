@@ -52,25 +52,18 @@ Status: implemented in wave 1 with `CapabilityResource`, deterministic check dec
 
 Open points:
 
-- URL source class in addition to git/npm/local.
-- Deterministic source normalization and cache/artifact-safe slugs.
-- Resolution plan object for local path roots, git refs, npm package names, and direct URL manifests/archives.
-- Actual fetch/extract policy is still a separate security decision. It should not shell out casually.
-- Later: content-addressed cache, integrity hashes, lockfile resolved metadata, and offline install behavior.
+- Actual remote fetch/extract policy is still a separate security decision. It should not shell out casually.
+- Later: content-addressed cache and offline install behavior for fetched git/npm/url sources.
 
-Status: deterministic planning implemented in wave 1 for git/npm/url/local without fetching or shell execution.
+Status: deterministic planning implemented in wave 1 for git/npm/url/local without fetching or shell execution. PR #2 adds persisted `resolvedSource` metadata and local content fingerprints to lockfile capability entries.
 
 ### Materialization
 
 Open points:
 
-- Copy capability resources into `.harnessy/capabilities/<safe-id>/`.
-- Preserve manifest/resource metadata beside copied resources.
-- Validate resource paths stay inside capability root.
-- Support dry verification before materialization.
-- Wire materialization into `capability add` and `install [source]` after schema/source slices settle.
+- Remote materialization after safe git/npm/url fetch policy lands.
 
-Status: implemented in wave 2. `CapabilityMaterializer` materializes local capability resources into `.harnessy/capabilities/<safe-id>/resources/`, validates source/destination boundaries, preserves executable bits when requested, and is wired into `capability add` for manifests with resources.
+Status: implemented in wave 2 and deepened in PR #2. `CapabilityMaterializer` materializes local capability resources into `.harnessy/capabilities/<safe-id>/resources/`, validates source/destination boundaries, preserves executable bits when requested, supports dry-run/refresh options, and is wired into `capability add` plus `capability materialize`.
 
 ### Verification runtime
 
@@ -150,9 +143,7 @@ Validation after wave 3, full v1 pack, and native installer parity:
 
 ## Next dispatch after wave 3
 
-1. Lockfile resolved-source metadata and content hashing using `CapabilityFingerprinter`.
-2. Promote v1 hooks/script shims/global skill registration from the full pack into native services.
-3. Remote git/npm/url fetch policy and safe fetch/extract implementation.
-4. Multiple profile activation and capability-scoped context loading.
-5. Capability materialization refresh/rebuild command for duplicates or changed local sources.
-6. Garden JSON report unification for resolved-source and fingerprint metadata.
+1. Promote v1 hooks/script shims/global skill registration from the full pack into native services.
+2. Remote git/npm/url fetch policy and safe fetch/extract implementation.
+3. Multiple profile activation and capability-scoped context loading.
+4. Garden JSON report expansion beyond current resolved-source/fingerprint fields.
