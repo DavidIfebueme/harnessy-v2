@@ -97,16 +97,29 @@ export class CapabilityRegistry extends Context.Service<
 					? Effect.succeed(null)
 					: materializer.materialize(paths, capability);
 
+			const capabilityManifestPath = (paths: HarnessPaths, capability: CapabilityEntry): string => {
+				const filename = capability.id.replace(/[^a-z0-9._-]+/g, "-");
+				return path.join(paths.capabilitiesDir, `${filename}.json`);
+			};
+
 			/** Write an adjacent per-capability manifest for easy inspection by humans and agents. */
 			const writeCapabilityManifest = (paths: HarnessPaths, capability: CapabilityEntry) =>
 				Effect.gen(function* () {
-					const filename = capability.id.replace(/[^a-z0-9._-]+/g, "-");
-					const manifestPath = path.join(paths.capabilitiesDir, `${filename}.json`);
+					const manifestPath = capabilityManifestPath(paths, capability);
 					yield* fs
 						.writeFileString(manifestPath, formatManifestJson(capability))
 						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not write ${manifestPath}`, cause)));
 					return manifestPath;
 				});
+
+			const syncCapabilityArtifacts = Effect.fn("CapabilityRegistry.syncCapabilityArtifacts")(function* (
+				paths: HarnessPaths,
+				capability: CapabilityEntry,
+			) {
+				const manifestPath = yield* writeCapabilityManifest(paths, capability);
+				const materialization = yield* materializeCapability(paths, capability);
+				return { manifestPath, materialization } as const;
+			});
 
 			/** Verify one local capability path. Remote capability sources are deferred to later resolvers. */
 			const verifyLocalCapability = (paths: HarnessPaths, capability: CapabilityEntry) =>
@@ -152,11 +165,12 @@ export class CapabilityRegistry extends Context.Service<
 					(capability) => capability.id === id || capability.source.value === source.value,
 				);
 				if (duplicate !== undefined) {
+					const artifacts = yield* syncCapabilityArtifacts(paths, duplicate);
 					return {
 						capability: duplicate,
 						added: false,
-						manifestPath: null,
-						materialization: null,
+						manifestPath: artifacts.manifestPath,
+						materialization: artifacts.materialization,
 					} satisfies AddCapabilityResult;
 				}
 
@@ -171,10 +185,14 @@ export class CapabilityRegistry extends Context.Service<
 					...lockfile,
 					capabilities: [...lockfile.capabilities, capability],
 				});
+				const artifacts = yield* syncCapabilityArtifacts(paths, capability);
 				yield* lockfiles.write(paths, nextLockfile);
-				const manifestPath = yield* writeCapabilityManifest(paths, capability);
-				const materialization = yield* materializeCapability(paths, capability);
-				return { capability, added: true, manifestPath, materialization } satisfies AddCapabilityResult;
+				return {
+					capability,
+					added: true,
+					manifestPath: artifacts.manifestPath,
+					materialization: artifacts.materialization,
+				} satisfies AddCapabilityResult;
 			});
 
 			const verify = Effect.fn("CapabilityRegistry.verify")(function* (

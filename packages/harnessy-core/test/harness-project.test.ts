@@ -7,6 +7,7 @@ import { Command } from "effect/unstable/cli";
 import {
 	CAPABILITY_MANIFEST_NAME,
 	CapabilityManifest,
+	CapabilityResource,
 	DependencyRequirement,
 	parseCapabilityManifest,
 } from "../src/capability-manifest.ts";
@@ -19,7 +20,7 @@ import {
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
 import { DependencyChecker } from "../src/dependency-checker.ts";
-import { HarnessLockfile, parseLockfile } from "../src/lockfile.ts";
+import { formatLockfile, HarnessLockfile, parseLockfile } from "../src/lockfile.ts";
 import { HarnessProject } from "../src/operations.ts";
 import { parseGitRemote, parsePnpmWorkspaceGlobs } from "../src/project-detection.ts";
 import { RuntimeEnvironment } from "../src/runtime-environment.ts";
@@ -510,6 +511,51 @@ describe("HarnessProject", () => {
 					["context-present", "passed"],
 				]);
 				expect(verify.issues).toEqual([]);
+			}),
+		),
+	);
+
+	it.effect("retries materialization for duplicate capability records", () =>
+		provideLive(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const init = yield* project.init(targetDir, false);
+				yield* fs.makeDirectory(`${targetDir}/retry-capability/context`, { recursive: true });
+				yield* fs.writeFileString(`${targetDir}/retry-capability/context/AGENTS.md`, "# Retry Capability\n");
+
+				const capability = new CapabilityEntry({
+					id: "local:retry-capability",
+					source: new CapabilitySource({ type: "local", value: "./retry-capability" }),
+					addedAt: "2026-01-01T00:00:00.000Z",
+					manifest: new CapabilityManifest({
+						id: "local:retry-capability",
+						name: "Retry Capability",
+						resources: [
+							new CapabilityResource({
+								kind: "context",
+								path: "context/AGENTS.md",
+							}),
+						],
+					}),
+				});
+				const initialLockfileText = yield* fs.readFileString(init.paths.lockfile);
+				const initialLockfile = yield* parseLockfile(initialLockfileText, init.paths.lockfile);
+				yield* fs.writeFileString(
+					init.paths.lockfile,
+					formatLockfile(new HarnessLockfile({ ...initialLockfile, capabilities: [capability] })),
+				);
+
+				const artifactPath = `${targetDir}/.harnessy/capabilities/local-retry-capability/resources/context/AGENTS.md`;
+				expect(yield* fs.exists(artifactPath)).toBe(false);
+
+				const duplicate = yield* project.addCapability(targetDir, "./retry-capability", undefined);
+
+				expect(duplicate.added).toBe(false);
+				expect(duplicate.manifestPath).not.toBeNull();
+				expect(duplicate.materialization?.copied.map((resource) => resource.target)).toEqual(["context/AGENTS.md"]);
+				expect(yield* fs.readFileString(artifactPath)).toBe("# Retry Capability\n");
 			}),
 		),
 	);
