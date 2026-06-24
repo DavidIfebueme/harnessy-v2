@@ -145,7 +145,7 @@ Validation after wave 3, full v1 pack, and native installer parity:
 ## Next dispatch after wave 3
 
 1. Done: external bootstrap commands now run through an explicit native `CommandRunner` service built on the effect-smol `ChildProcessSpawner` seam. Single-argv commands (git source refresh, `uv tool install`) execute behind `--apply-bootstrap --run-external`; compound/piped commands (`curl | sh`, corepack `&&`) remain represented as manual/plan-only `command` strings by design. The runner accepts argv arrays only — no shell parsing — and captures structured exit/stdout/stderr per command. Tested with a recording fake `ChildProcessSpawner` (opencode pattern) plus two live tests against the runner's own node binary; no real third-party binaries, network, or timing in tests.
-2. Extend `CommandRunner` to the remaining external surfaces once their security boundary is reviewed: remote git clone for the not-yet-present remote source case, and dependency installer commands that are currently compound/piped.
+2. Done (git clone): `--clone-source` acquires the bootstrap source via `git clone <repoUrl> <flowRoot>` through `CommandRunner`, gated behind `--run-external` (plan-only otherwise). Remaining: dependency installer commands that are currently compound/piped (`curl | sh`, corepack `&&`) once their security boundary is reviewed.
 3. Port or explicitly plan the remaining v1 Autoflow installer behavior.
 4. Multiple profile activation and capability-scoped context loading.
 5. Garden JSON report expansion beyond current resolved-source/fingerprint fields.

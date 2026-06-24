@@ -42,6 +42,8 @@ export interface NativeBootstrapOptions {
 	readonly applyBootstrap?: boolean;
 	/** Execute runnable external bootstrap commands (git refresh, uv tool install). Requires applyBootstrap. */
 	readonly runExternal?: boolean;
+	/** Acquire source by cloning the repo with git instead of copying the preserved snapshot. */
+	readonly cloneSource?: boolean;
 	/** Preview changes without writing files. */
 	readonly dryRun?: boolean;
 	/** Noninteractive v1 flag. Kept for parity and forwarded to native install planning. */
@@ -522,6 +524,7 @@ export class HarnessProject extends Context.Service<
 					dryRun: options.applyBootstrap === true ? (options.dryRun ?? false) : true,
 					applyBootstrap: options.applyBootstrap,
 					runExternal: options.runExternal,
+					cloneSource: options.cloneSource,
 					force: options.force,
 					refreshSource: options.refreshSource,
 					skipSubprojects: options.skipSubprojects,

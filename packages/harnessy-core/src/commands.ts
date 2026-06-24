@@ -63,6 +63,14 @@ const runExternalOption = Options.boolean("run-external").pipe(
 	),
 );
 
+/** Acquire bootstrap source by cloning the repo with git instead of copying the preserved snapshot. */
+const cloneSourceOption = Options.boolean("clone-source").pipe(
+	Options.withDefault(false),
+	Options.withDescription(
+		"Clone the Harnessy source repo with git instead of copying the preserved snapshot. Runs only with --run-external.",
+	),
+);
+
 /** V1 --here mode: install into the current repository. */
 const hereOption = Options.boolean("here").pipe(
 	Options.withDefault(false),
@@ -231,6 +239,7 @@ const bootstrapCommand = Command.make(
 		reconfigure: reconfigureOption,
 		applyBootstrap: applyBootstrapOption,
 		runExternal: runExternalOption,
+		cloneSource: cloneSourceOption,
 		applyGlobal: applyGlobalOption,
 		globalRoot: globalRootOption,
 		globalSkillsDir: globalSkillsDirOption,
@@ -255,6 +264,7 @@ const bootstrapCommand = Command.make(
 		reconfigure,
 		applyBootstrap,
 		runExternal,
+		cloneSource,
 		applyGlobal,
 		globalRoot,
 		globalSkillsDir,
@@ -282,6 +292,7 @@ const bootstrapCommand = Command.make(
 				reconfigure,
 				applyBootstrap,
 				runExternal,
+				cloneSource,
 				applyGlobal,
 				globalRoot: Option.getOrUndefined(globalRoot),
 				globalSkillsDir: Option.getOrUndefined(globalSkillsDir),

@@ -25,6 +25,7 @@ export class HarnessBootstrapAction extends Schema.Class<HarnessBootstrapAction>
 	kind: Schema.Literals([
 		"tool-check",
 		"source-cache",
+		"source-clone",
 		"source-refresh",
 		"jarvis-tool-install",
 		"framework-install",
@@ -78,6 +79,12 @@ export interface HarnessBootstrapPrepareOptions {
 	 * a non-dry run; compound/piped commands are never auto-run regardless.
 	 */
 	readonly runExternal?: boolean;
+	/**
+	 * Acquire the source by cloning `repoUrl` with git instead of copying the
+	 * preserved v1 snapshot. The clone runs only with `runExternal`; without it
+	 * the bootstrap stays plan-only (the source cannot be materialized).
+	 */
+	readonly cloneSource?: boolean;
 	/** Force semantics from v1 install.sh. */
 	readonly force?: boolean;
 	/** Refresh cached source semantics from v1 install.sh. */
@@ -206,7 +213,16 @@ export class HarnessBootstrap extends Context.Service<
 			});
 
 			const prepare = Effect.fn("HarnessBootstrap.prepare")(function* (options: HarnessBootstrapPrepareOptions) {
-				const dryRun = options.applyBootstrap === true ? (options.dryRun ?? false) : true;
+				const wantsClone = options.cloneSource === true;
+				const canRunExternal = options.runExternal === true && options.applyBootstrap === true;
+				// Cloning materializes the source via git, so without --run-external there is
+				// no source to install from — the whole bootstrap stays plan-only in that case.
+				const dryRun =
+					options.applyBootstrap === true
+						? wantsClone && !canRunExternal
+							? true
+							: (options.dryRun ?? false)
+						: true;
 				const home = path.resolve(options.globalRoot ?? homedir());
 				const installDir = path.resolve(resolveHome(home, options.installDir ?? path.join(home, "harnessy")));
 				const cacheDir = path.resolve(resolveHome(home, options.cacheDir ?? path.join(home, ".cache", "harnessy")));
@@ -291,7 +307,28 @@ export class HarnessBootstrap extends Context.Service<
 					}),
 				);
 
-				if (dryRun || options.applyBootstrap !== true) {
+				if (wantsClone) {
+					// Acquire the source by cloning the remote repo instead of copying the
+					// preserved snapshot. git creates flowRoot itself, so only its parent
+					// must exist; the externalAction gates actual execution on --run-external.
+					if (runExternalNow) {
+						yield* makeDirectory(path.dirname(flowRoot));
+					}
+					actions.push(
+						yield* externalAction({
+							kind: "source-clone",
+							label:
+								options.mode === "in-place"
+									? "Clone cached Harnessy source"
+									: "Clone Harnessy workspace source",
+							executable: "git",
+							args: ["clone", repoUrl, flowRoot],
+							targetPath: flowRoot,
+							reason: "Remote source clone runs only with --run-external; otherwise it is planned.",
+						}),
+					);
+					written.push(flowRoot);
+				} else if (dryRun || options.applyBootstrap !== true) {
 					actions.push(
 						makeAction({
 							kind: "source-cache",

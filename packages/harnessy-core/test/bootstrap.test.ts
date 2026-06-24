@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import { TestConsole } from "effect/testing";
 import { Command } from "effect/unstable/cli";
 
+import { HarnessBootstrap } from "../src/bootstrap.ts";
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
 import { HarnessProject } from "../src/operations.ts";
@@ -244,6 +245,74 @@ describe("Harnessy bootstrap", () => {
 				const jarvis = result.bootstrap.actions.find((action) => action.kind === "jarvis-tool-install");
 				expect(jarvis?.status).toBe("planned");
 				expect(fake.calls).toHaveLength(0);
+			}),
+		);
+	});
+
+	it.effect("plans a git clone for --clone-source and stays plan-only without --run-external", () => {
+		const fake = makeFakeSpawner();
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+				const cacheDir = `${globalRoot}/.cache/harnessy`;
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					applyBootstrap: true,
+					cloneSource: true,
+					globalRoot,
+					cacheDir,
+					repoUrl: "https://example.test/harnessy.git",
+				});
+
+				// Cloning cannot materialize the source without --run-external, so the
+				// whole bootstrap stays plan-only.
+				expect(result.dryRun).toBe(true);
+				const clone = result.bootstrap.actions.find((action) => action.kind === "source-clone");
+				expect(clone?.status).toBe("planned");
+				expect(clone?.argv?.args).toEqual(["clone", "https://example.test/harnessy.git", cacheDir]);
+				// The snapshot copy path is replaced by the clone.
+				expect(result.bootstrap.actions.some((action) => action.kind === "source-cache")).toBe(false);
+				expect(fake.calls).toHaveLength(0);
+			}),
+		);
+	});
+
+	it.effect("executes the git clone with --clone-source --run-external (via prepare)", () => {
+		const fake = makeFakeSpawner(() => ({ exitCode: 0 }));
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const bootstrap = yield* HarnessBootstrap;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+				const cacheDir = `${globalRoot}/.cache/harnessy`;
+
+				const prepared = yield* bootstrap.prepare({
+					mode: "in-place",
+					targetRoot: targetDir,
+					applyBootstrap: true,
+					runExternal: true,
+					cloneSource: true,
+					globalRoot,
+					cacheDir,
+					repoUrl: "https://example.test/harnessy.git",
+				});
+
+				const clone = prepared.actions.find((action) => action.kind === "source-clone");
+				expect(clone?.status).toBe("written");
+				expect(clone?.run?.status).toBe("succeeded");
+				const recorded = fake.calls.map((call) => [call.executable, ...call.args].join(" "));
+				expect(recorded).toContain(`git clone https://example.test/harnessy.git ${cacheDir}`);
+				// The faked clone created no files, confirming no snapshot copy happened either.
+				expect(yield* fs.exists(`${cacheDir}/install.sh`)).toBe(false);
 			}),
 		);
 	});
