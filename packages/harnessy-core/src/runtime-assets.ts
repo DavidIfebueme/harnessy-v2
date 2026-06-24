@@ -27,7 +27,14 @@ const CANONICAL_FLOW_SCRIPTS = [
 	"verify-harness.mjs",
 ] as const;
 
-const PIPELINE_SCRIPTS = ["pipeline-trigger", "stale-gate-monitor"] as const;
+const GLOBAL_RUNTIME_COMMANDS = [
+	"pipeline-trigger",
+	"stale-gate-monitor",
+	"flow-cron",
+	"flow-cron-exec",
+	"instrument-traces.py",
+	"validate-attribute.sh",
+] as const;
 
 const RESERVED_SCRIPT_NAMES = new Set([
 	"register-skills.mjs",
@@ -70,7 +77,7 @@ export class HarnessRuntimeAssetAction extends Schema.Class<HarnessRuntimeAssetA
 		"global-lifecycle-script",
 		"global-helper-script",
 		"global-hook-bundle",
-		"global-pipeline-script",
+		"global-runtime-command",
 		"global-skill-install",
 		"global-skill-shim",
 		"global-config",
@@ -172,6 +179,7 @@ export class HarnessRuntimeAssets extends Context.Service<
 
 			const flowScriptsDir = path.join(v1SourceRoot, "scripts", "flow");
 			const flowInstallRoot = path.join(v1SourceRoot, "tools", "flow-install");
+			const jarvisCliRoot = path.join(v1SourceRoot, "jarvis-cli");
 			const hookSourceDir = path.join(flowInstallRoot, "hooks");
 			const flowInstallScriptsDir = path.join(flowInstallRoot, "scripts");
 			const skillSourceDir = path.join(flowInstallRoot, "skills");
@@ -243,11 +251,18 @@ export class HarnessRuntimeAssets extends Context.Service<
 					yield* makeDirectory(path.dirname(targetPath));
 					if (overwrite) yield* removePath(targetPath);
 					else if (yield* exists(targetPath)) return false;
-					yield* fs.symlink(sourcePath, targetPath).pipe(
-						Effect.catch(() => copyFile(sourcePath, targetPath)),
-						Effect.mapError((cause) => mapPlatformError(`Could not link ${sourcePath} to ${targetPath}`, cause)),
-					);
-					yield* fs.chmod(targetPath, 0o755).pipe(Effect.catch(() => Effect.void));
+
+					const sourceInfo = yield* fs
+						.stat(sourcePath)
+						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not stat ${sourcePath}`, cause)));
+					const sourceExecutable = (sourceInfo.mode & 0o111) !== 0;
+					const copied = sourceExecutable
+						? yield* fs.symlink(sourcePath, targetPath).pipe(
+								Effect.as(false),
+								Effect.catch(() => copyFile(sourcePath, targetPath).pipe(Effect.as(true))),
+							)
+						: yield* copyFile(sourcePath, targetPath).pipe(Effect.as(true));
+					if (copied) yield* fs.chmod(targetPath, 0o755).pipe(Effect.catch(() => Effect.void));
 					return true;
 				});
 
@@ -350,6 +365,12 @@ export const parseFrontmatter = (content) => {
   }
   return { data, body };
 };
+`;
+
+			const generatedJarvisShim = (): string => `#!/usr/bin/env bash
+set -euo pipefail
+JARVIS_CLI_ROOT="\${HARNESSY_JARVIS_CLI_ROOT:-${jarvisCliRoot}}"
+exec uv run --project "\${JARVIS_CLI_ROOT}" jarvis "$@"
 `;
 
 			const resolveHome = (home: string, value: string): string => {
@@ -670,6 +691,43 @@ export const parseFrontmatter = (content) => {
 				},
 			);
 
+			const installJarvisCommand = Effect.fn("HarnessRuntimeAssets.installJarvisCommand")(function* (
+				globals: RuntimeGlobals,
+				options: HarnessRuntimeAssetSyncOptions,
+				actions: Array<HarnessRuntimeAssetAction>,
+				written: Array<string>,
+			) {
+				const targetPath = path.join(globals.globalCommandsDir, "jarvis");
+				if (options.dryRun || options.applyGlobal !== true) {
+					actions.push(
+						makeAction({
+							kind: "global-runtime-command",
+							label: "Install runtime command jarvis",
+							sourcePath: jarvisCliRoot,
+							targetPath,
+							unsafeGlobal: true,
+							status: "planned",
+							reason: options.applyGlobal === true ? "Dry run." : "Global writes require --apply-global.",
+						}),
+					);
+					if (options.dryRun) written.push(targetPath);
+					return;
+				}
+				yield* writeFileString(targetPath, generatedJarvisShim());
+				yield* fs.chmod(targetPath, 0o755).pipe(Effect.catch(() => Effect.void));
+				actions.push(
+					makeAction({
+						kind: "global-runtime-command",
+						label: "Install runtime command jarvis",
+						sourcePath: jarvisCliRoot,
+						targetPath,
+						unsafeGlobal: true,
+						status: "written",
+					}),
+				);
+				written.push(targetPath);
+			});
+
 			const installHooksAndPipelineScripts = Effect.fn("HarnessRuntimeAssets.installHooksAndPipelineScripts")(
 				function* (
 					globals: RuntimeGlobals,
@@ -707,14 +765,14 @@ export const parseFrontmatter = (content) => {
 						written.push(hooksTarget);
 					}
 
-					for (const scriptName of PIPELINE_SCRIPTS) {
+					for (const scriptName of GLOBAL_RUNTIME_COMMANDS) {
 						const sourcePath = path.join(flowInstallScriptsDir, scriptName);
 						const targetPath = path.join(globals.globalCommandsDir, scriptName);
 						if (options.dryRun || options.applyGlobal !== true) {
 							actions.push(
 								makeAction({
-									kind: "global-pipeline-script",
-									label: `Install pipeline command ${scriptName}`,
+									kind: "global-runtime-command",
+									label: `Install runtime command ${scriptName}`,
 									sourcePath,
 									targetPath,
 									unsafeGlobal: true,
@@ -729,8 +787,8 @@ export const parseFrontmatter = (content) => {
 						yield* symlinkExecutable(sourcePath, targetPath, true);
 						actions.push(
 							makeAction({
-								kind: "global-pipeline-script",
-								label: `Install pipeline command ${scriptName}`,
+								kind: "global-runtime-command",
+								label: `Install runtime command ${scriptName}`,
 								sourcePath,
 								targetPath,
 								unsafeGlobal: true,
@@ -1058,6 +1116,7 @@ export const parseFrontmatter = (content) => {
 				yield* installProjectScripts(paths, installPaths, options, actions, written, issues);
 				yield* scaffoldProjectHooks(paths, options, actions, written);
 				yield* installGlobalLifecycleScripts(globals, options, actions, written);
+				yield* installJarvisCommand(globals, options, actions, written);
 				yield* installHooksAndPipelineScripts(globals, options, actions, written);
 				yield* installGlobalSkills(globals, options, actions, written, issues);
 				yield* registerAgentSkills(globals, options, actions, written);
