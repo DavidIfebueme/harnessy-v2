@@ -7,10 +7,18 @@ import { Command } from "effect/unstable/cli";
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
 import { HarnessProject } from "../src/operations.ts";
+import { type FakeSpawner, makeFakeSpawner } from "./lib/fake-spawner.ts";
 
 /** Provide the live Harnessy project service plus Node platform services. */
 const provideLive = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 	effect.pipe(Effect.provide(HarnessProject.layer), Effect.provide(NodeServices.layer));
+
+/**
+ * Like {@link provideLive}, but the recording fake spawner satisfies
+ * ChildProcessSpawner before NodeServices, so no external binary is ever run.
+ */
+const provideWithFake = <A, E, R>(fake: FakeSpawner, effect: Effect.Effect<A, E, R>) =>
+	effect.pipe(Effect.provide(HarnessProject.layer), Effect.provide(fake.layer), Effect.provide(NodeServices.layer));
 
 describe("Harnessy bootstrap", () => {
 	it.effect("plans v1 install.sh bootstrap without mutating target or cache by default", () =>
@@ -74,6 +82,134 @@ describe("Harnessy bootstrap", () => {
 			}),
 		),
 	);
+
+	it.effect("represents runnable external actions as argv plans without running them by default", () => {
+		const fake = makeFakeSpawner();
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					globalRoot,
+					cacheDir: `${globalRoot}/.cache/harnessy`,
+					refreshSource: true,
+				});
+
+				const jarvis = result.bootstrap.actions.find((action) => action.kind === "jarvis-tool-install");
+				const refresh = result.bootstrap.actions.find((action) => action.kind === "source-refresh");
+				expect(jarvis?.status).toBe("planned");
+				expect(jarvis?.argv?.executable).toBe("uv");
+				expect(refresh?.status).toBe("planned");
+				expect(refresh?.argv).toMatchObject({ executable: "git" });
+				// No command was actually spawned.
+				expect(fake.calls).toHaveLength(0);
+			}),
+		);
+	});
+
+	it.effect("executes runnable external commands with --run-external and captures results", () => {
+		const fake = makeFakeSpawner(() => ({ exitCode: 0, stdout: "ok" }));
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+				const cacheDir = `${globalRoot}/.cache/harnessy`;
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					yes: true,
+					applyBootstrap: true,
+					runExternal: true,
+					refreshSource: true,
+					globalRoot,
+					cacheDir,
+				});
+
+				const jarvis = result.bootstrap.actions.find((action) => action.kind === "jarvis-tool-install");
+				const refresh = result.bootstrap.actions.find((action) => action.kind === "source-refresh");
+				expect(jarvis?.status).toBe("written");
+				expect(jarvis?.run?.status).toBe("succeeded");
+				expect(refresh?.status).toBe("written");
+
+				// The fake recorded the exact argv for each runnable action — no shell string.
+				const recorded = fake.calls.map((call) => [call.executable, ...call.args].join(" "));
+				expect(recorded).toContain(`git -C ${cacheDir} pull --ff-only`);
+				expect(recorded).toContain(`uv tool install --force ${cacheDir}/jarvis-cli`);
+				expect(result.bootstrap.issues).toHaveLength(0);
+			}),
+		);
+	});
+
+	it.effect("records a failed external command as failed without throwing", () => {
+		const fake = makeFakeSpawner((call) =>
+			call.executable === "uv" ? { exitCode: 1, stderr: "uv blew up" } : { exitCode: 0 },
+		);
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					yes: true,
+					applyBootstrap: true,
+					runExternal: true,
+					globalRoot,
+					cacheDir: `${globalRoot}/.cache/harnessy`,
+				});
+
+				const jarvis = result.bootstrap.actions.find((action) => action.kind === "jarvis-tool-install");
+				expect(jarvis?.status).toBe("failed");
+				expect(jarvis?.run?.exitCode).toBe(1);
+				expect(result.bootstrap.issues.some((issue) => issue.includes("Jarvis"))).toBe(true);
+			}),
+		);
+	});
+
+	it.effect("does not execute external commands without --apply-bootstrap even if --run-external is set", () => {
+		const fake = makeFakeSpawner();
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					runExternal: true,
+					refreshSource: true,
+					globalRoot,
+					cacheDir: `${globalRoot}/.cache/harnessy`,
+				});
+
+				expect(result.dryRun).toBe(true);
+				const jarvis = result.bootstrap.actions.find((action) => action.kind === "jarvis-tool-install");
+				expect(jarvis?.status).toBe("planned");
+				expect(fake.calls).toHaveLength(0);
+			}),
+		);
+	});
 
 	it.live("runs v1-compatible bootstrap flags through the live CLI", () =>
 		provideLive(
