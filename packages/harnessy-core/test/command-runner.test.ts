@@ -62,6 +62,22 @@ describe("CommandRunner", () => {
 		);
 	});
 
+	it.effect("caps captured output to the tail for chatty commands", () => {
+		const head = "A".repeat(20_000);
+		const tailMarker = "TAIL-END";
+		const fake = makeFakeSpawner(() => ({ exitCode: 0, stdout: head + tailMarker }));
+		return withFake(
+			fake,
+			Effect.gen(function* () {
+				const runner = yield* CommandRunner;
+				const result = yield* runner.run({ id: "noisy", label: "Noisy", executable: "noisy", args: [] });
+				// Output is bounded (16 KiB cap) and retains the most recent bytes.
+				expect(result.stdout.length).toBe(16 * 1024);
+				expect(result.stdout.endsWith(tailMarker)).toBe(true);
+			}),
+		);
+	});
+
 	it.effect("reports a non-zero exit as failed without throwing", () => {
 		const fake = makeFakeSpawner(() => ({ exitCode: 2, stderr: "boom\n" }));
 		return withFake(

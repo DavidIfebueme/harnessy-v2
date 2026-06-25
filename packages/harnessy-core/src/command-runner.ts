@@ -64,8 +64,20 @@ export class CommandRunResult extends Schema.Class<CommandRunResult>("CommandRun
 /** Cap captured output so a chatty command cannot balloon the result. */
 const MAX_CAPTURED_CHARS = 16 * 1024;
 
-const tail = (value: string): string =>
-	value.length <= MAX_CAPTURED_CHARS ? value : value.slice(value.length - MAX_CAPTURED_CHARS);
+/**
+ * Drain a text stream while keeping only the last {@link MAX_CAPTURED_CHARS}.
+ * Folding as we go bounds memory to ~2× the cap even for a process that writes
+ * megabytes — unlike materializing the whole output and truncating afterwards.
+ */
+const captureTail = <E>(stream: Stream.Stream<string, E>): Effect.Effect<string, E> =>
+	Stream.runFold(
+		stream,
+		() => "",
+		(accumulated, chunk) => {
+			const combined = accumulated + chunk;
+			return combined.length <= MAX_CAPTURED_CHARS ? combined : combined.slice(combined.length - MAX_CAPTURED_CHARS);
+		},
+	);
 
 /** Render an argv as a copy-pasteable display string. Display only — never parsed back. */
 export const displayCommand = (executable: string, args: ReadonlyArray<string>): string =>
@@ -109,8 +121,8 @@ export class CommandRunner extends Context.Service<
 						return yield* Effect.all(
 							{
 								exitCode: handle.exitCode,
-								stdout: Stream.mkString(Stream.decodeText(handle.stdout)),
-								stderr: Stream.mkString(Stream.decodeText(handle.stderr)),
+								stdout: captureTail(Stream.decodeText(handle.stdout)),
+								stderr: captureTail(Stream.decodeText(handle.stderr)),
 							},
 							{ concurrency: "unbounded" },
 						);
@@ -143,8 +155,8 @@ export class CommandRunner extends Context.Service<
 					args: [...command.args],
 					cwd: command.cwd,
 					exitCode: outcome.exitCode,
-					stdout: tail(outcome.stdout),
-					stderr: tail(outcome.stderr),
+					stdout: outcome.stdout,
+					stderr: outcome.stderr,
 					status,
 					error: outcome.error,
 				});
