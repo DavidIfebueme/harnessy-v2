@@ -25,6 +25,7 @@ import type {
 import type { DependencyCheckResult, DependencyReport, DependencyStatus } from "./dependency-checker.ts";
 import type { DoctorResult, VerifyResult } from "./operations.ts";
 import type { MonorepoType, PackageManager, WorkspaceKind } from "./project-detection.ts";
+import type { SkillValidationReport } from "./skill-validator.ts";
 
 /** Capability source payload emitted in structured command output. */
 export interface StructuredCapabilitySource {
@@ -781,6 +782,71 @@ export const verifyJsonOutput = (target: string, result: VerifyResult): Structur
 /** Render the stable structured JSON text for `harnessy verify --json`. */
 export const renderVerifyJson = (target: string, result: VerifyResult): string =>
 	renderStructuredJson(verifyJsonOutput(target, result));
+
+/** One discovered skill in the structured skill payload. */
+export interface StructuredSkillSummary {
+	readonly directory: string;
+	readonly name?: string;
+	readonly version?: string;
+	readonly status?: string;
+}
+
+/** One skill validation issue in the structured skill payload. */
+export interface StructuredSkillIssue {
+	readonly skill: string;
+	readonly kind: string;
+	readonly message: string;
+	readonly file?: string;
+}
+
+/** Command identity for the skill structured payload. */
+export type StructuredSkillCommand = "skill-validate" | "skill-list";
+
+/** Stable structured payload for `harnessy skill validate --json` / `skill list --json`. */
+export interface StructuredSkillOutput {
+	readonly command: StructuredSkillCommand;
+	readonly ok: boolean;
+	readonly target: string;
+	readonly skillsDir: string;
+	readonly skillsDirExists: boolean;
+	readonly skillCount: number;
+	readonly skills: ReadonlyArray<StructuredSkillSummary>;
+	readonly issues: ReadonlyArray<StructuredSkillIssue>;
+}
+
+/** Build the stable structured payload for a skill command, tagged with its command identity. */
+export const skillJsonOutput = (
+	command: StructuredSkillCommand,
+	target: string,
+	report: SkillValidationReport,
+): StructuredSkillOutput => ({
+	command,
+	ok: report.ok,
+	target,
+	skillsDir: report.skillsDir,
+	skillsDirExists: report.skillsDirExists,
+	skillCount: report.skills.length,
+	skills: report.skills.map((skill) => ({
+		directory: skill.directory,
+		...(skill.name === undefined ? {} : { name: skill.name }),
+		...(skill.version === undefined ? {} : { version: skill.version }),
+		...(skill.status === undefined ? {} : { status: skill.status }),
+	})),
+	issues: report.issues.map((issue) => ({
+		skill: issue.skill,
+		kind: issue.kind,
+		message: issue.message,
+		...(issue.file === undefined ? {} : { file: issue.file }),
+	})),
+});
+
+/** Render the stable structured JSON text for `harnessy skill validate --json`. */
+export const renderSkillValidateJson = (target: string, report: SkillValidationReport): string =>
+	renderStructuredJson(skillJsonOutput("skill-validate", target, report));
+
+/** Render the stable structured JSON text for `harnessy skill list --json`. */
+export const renderSkillListJson = (target: string, report: SkillValidationReport): string =>
+	renderStructuredJson(skillJsonOutput("skill-list", target, report));
 
 /** Build the stable structured payload for `harnessy doctor --json`. */
 export const doctorJsonOutput = (target: string, result: DoctorResult): StructuredDoctorOutput => ({

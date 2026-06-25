@@ -34,6 +34,7 @@ Implemented in `packages/harnessy-core`:
 - Full v1 compatibility capability pack at `packages/capability-harnessy-v1-full`, including a complete v1 repo snapshot plus direct resources for flow-install, the context vault, Jarvis CLI, and bootstrap docs.
 - Native v1-compatible installer options: saved `installPaths`, `--dry-run`, `--reconfigure`, `--step`, `--agents-file`, `--context-dir`, `--skills-dir`, `--scripts-dir`, `--yes`, scoped memory `_scopes.yaml`, AGENTS.md managed block, context AGENTS.md managed block, and force refresh that preserves lockfile capabilities.
 - Native runtime asset parity: preserved v1 project script copying, v1 package.json lifecycle scripts, `.jarvis/hooks.yaml` scaffold, generated helper scripts, `install --step package-scripts`, `install --step runtime-assets`, and explicit `--apply-global` for user-global lifecycle scripts, hooks, runtime command scripts (`jarvis`, `pipeline-trigger`, `stale-gate-monitor`, `flow-cron`, `flow-cron-exec`, trace instrumentation, attribute validation), skills, skill command shims, tmux config, and Claude/OpenCode/Codex registration.
+- Native skill validation: `harnessy skill validate` / `skill list` (`SkillValidator`) port v1 `validate-skills.mjs` required manifest fields and `skill_guardrails/validate_skill_paths.py` path guardrails (SKILL.md presence, template-resolution declaration, no `CLAUDE_PLUGIN_ROOT`, no relative `./commands/*.md`) into one deterministic report with `--json` output.
 
 ## Remaining core points
 
@@ -116,7 +117,7 @@ Status: `packages/capability-org-knowledge` exists with manifest resources/check
 These are now preserved in `packages/capability-harnessy-v1-full` and should be promoted into native Harnessy commands/services rather than rediscovered from scratch:
 
 - Installer behavior: optional Autoflow workflow/program prompt flow, remote git clone execution (for the not-yet-present remote case), direct dependency installer command execution for compound/piped commands (`curl | sh`, corepack `&&`), and detailed unpromoted-improvement warnings/stale plugin cleanup branches. Saved install paths, dry-run/step-only/force modes, managed AGENTS blocks, project script copying, package lifecycle scripts, hook config scaffold, generated helper scripts, Jarvis command shim, runtime command exposure, native bootstrap planning/source-cache/framework apply paths, opt-in global runtime apply paths, and opt-in execution of single-argv external bootstrap commands (git source refresh, `uv tool install`) via the native `CommandRunner` are now native.
-- Skill lifecycle: create, validate, publish, feedback, improve, promote.
+- Skill lifecycle: create, publish, feedback, improve, promote. Validate is now native: `harnessy skill validate` / `skill list` runs the v1 manifest required-field checks plus the `skill_guardrails` path checks deterministically via `SkillValidator`.
 - Product/spec flow: brainstorm, PRD, design spec, technical spec, MVP tech spec, review skills.
 - Build/review: engineer, build-e2e, code review, local run, dev container, security audit, semver, git commit, design mockup.
 - QA/regression: QA runtime, sweeps, feature catalog, browser/API integration codegen, spec-to-regression, test quality validator.
