@@ -55,6 +55,14 @@ const applyBootstrapOption = Options.boolean("apply-bootstrap").pipe(
 	Options.withDescription("Apply native safe v1 bootstrap writes instead of only planning them."),
 );
 
+/** Opt in to executing runnable external bootstrap commands (git refresh, uv tool install). */
+const runExternalOption = Options.boolean("run-external").pipe(
+	Options.withDefault(false),
+	Options.withDescription(
+		"Execute runnable external bootstrap commands (git refresh, uv tool install). Requires --apply-bootstrap and does not run during --dry-run.",
+	),
+);
+
 /** V1 --here mode: install into the current repository. */
 const hereOption = Options.boolean("here").pipe(
 	Options.withDefault(false),
@@ -222,6 +230,7 @@ const bootstrapCommand = Command.make(
 		yes: yesOption,
 		reconfigure: reconfigureOption,
 		applyBootstrap: applyBootstrapOption,
+		runExternal: runExternalOption,
 		applyGlobal: applyGlobalOption,
 		globalRoot: globalRootOption,
 		globalSkillsDir: globalSkillsDirOption,
@@ -245,6 +254,7 @@ const bootstrapCommand = Command.make(
 		yes,
 		reconfigure,
 		applyBootstrap,
+		runExternal,
 		applyGlobal,
 		globalRoot,
 		globalSkillsDir,
@@ -271,6 +281,7 @@ const bootstrapCommand = Command.make(
 				yes,
 				reconfigure,
 				applyBootstrap,
+				runExternal,
 				applyGlobal,
 				globalRoot: Option.getOrUndefined(globalRoot),
 				globalSkillsDir: Option.getOrUndefined(globalSkillsDir),
@@ -294,11 +305,26 @@ const bootstrapCommand = Command.make(
 			);
 			yield* Console.log(`Installer source: ${result.bootstrap.flowRoot}`);
 			yield* logWrittenFiles(result.written);
-			const externalActions = result.bootstrap.actions.filter(
-				(action) => action.unsafeExternal && action.status === "planned",
-			);
-			if (externalActions.length > 0) {
-				yield* Console.log(`Planned external bootstrap actions: ${externalActions.length}`);
+			const externalActions = result.bootstrap.actions.filter((action) => action.unsafeExternal);
+			const plannedExternal = externalActions.filter((action) => action.status === "planned");
+			const executedExternal = externalActions.filter((action) => action.status === "written");
+			const failedExternal = externalActions.filter((action) => action.status === "failed");
+			if (plannedExternal.length > 0) {
+				yield* Console.log(`Planned external bootstrap actions: ${plannedExternal.length}`);
+			}
+			if (executedExternal.length > 0) {
+				yield* Console.log(`Executed external bootstrap actions: ${executedExternal.length}`);
+			}
+			if (failedExternal.length > 0) {
+				yield* Console.log(`Failed external bootstrap actions: ${failedExternal.length}`);
+			}
+			for (const action of failedExternal) {
+				const detail =
+					action.run?.error ??
+					(action.run?.status !== undefined && action.run.exitCode !== undefined
+						? `${action.run.status}, exit code ${action.run.exitCode}`
+						: action.run?.status);
+				yield* Console.log(`Failed external bootstrap action: ${action.label}${detail ? ` (${detail})` : ""}`);
 			}
 		}),
 ).pipe(Command.withDescription("Prepare or apply v1 install.sh bootstrap behavior"));
