@@ -308,25 +308,40 @@ export class HarnessBootstrap extends Context.Service<
 				);
 
 				if (wantsClone) {
+					// A repoUrl beginning with "-" could be parsed by git as an option; the
+					// "--" delimiter below already prevents that, but reject it up front for a
+					// clearer error than git would produce.
+					if (repoUrl.startsWith("-")) {
+						return yield* new HarnessError({
+							message: `Invalid repository URL "${repoUrl}": must not start with "-".`,
+						});
+					}
 					// Acquire the source by cloning the remote repo instead of copying the
 					// preserved snapshot. git creates flowRoot itself, so only its parent
 					// must exist; the externalAction gates actual execution on --run-external.
+					// "--" ends git option parsing so the URL/path can never be read as a flag.
 					if (runExternalNow) {
 						yield* makeDirectory(path.dirname(flowRoot));
 					}
-					actions.push(
-						yield* externalAction({
-							kind: "source-clone",
-							label:
-								options.mode === "in-place"
-									? "Clone cached Harnessy source"
-									: "Clone Harnessy workspace source",
-							executable: "git",
-							args: ["clone", repoUrl, flowRoot],
-							targetPath: flowRoot,
-							reason: "Remote source clone runs only with --run-external; otherwise it is planned.",
-						}),
-					);
+					const cloneAction = yield* externalAction({
+						kind: "source-clone",
+						label:
+							options.mode === "in-place" ? "Clone cached Harnessy source" : "Clone Harnessy workspace source",
+						executable: "git",
+						args: ["clone", "--", repoUrl, flowRoot],
+						targetPath: flowRoot,
+						reason: "Remote source clone runs only with --run-external; otherwise it is planned.",
+					});
+					actions.push(cloneAction);
+					// A failed clone leaves no source to install from, so halt the whole
+					// bootstrap rather than proceeding into the framework install phase.
+					if (cloneAction.status === "failed") {
+						return yield* new HarnessError({
+							message: `Failed to clone Harnessy source from ${repoUrl}: ${
+								cloneAction.run?.error ?? `git exited ${cloneAction.run?.exitCode ?? "non-zero"}`
+							}`,
+						});
+					}
 					written.push(flowRoot);
 				} else if (dryRun || options.applyBootstrap !== true) {
 					actions.push(

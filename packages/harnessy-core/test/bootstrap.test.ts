@@ -276,7 +276,7 @@ describe("Harnessy bootstrap", () => {
 				expect(result.dryRun).toBe(true);
 				const clone = result.bootstrap.actions.find((action) => action.kind === "source-clone");
 				expect(clone?.status).toBe("planned");
-				expect(clone?.argv?.args).toEqual(["clone", "https://example.test/harnessy.git", cacheDir]);
+				expect(clone?.argv?.args).toEqual(["clone", "--", "https://example.test/harnessy.git", cacheDir]);
 				// The snapshot copy path is replaced by the clone.
 				expect(result.bootstrap.actions.some((action) => action.kind === "source-cache")).toBe(false);
 				expect(fake.calls).toHaveLength(0);
@@ -310,9 +310,40 @@ describe("Harnessy bootstrap", () => {
 				expect(clone?.status).toBe("written");
 				expect(clone?.run?.status).toBe("succeeded");
 				const recorded = fake.calls.map((call) => [call.executable, ...call.args].join(" "));
-				expect(recorded).toContain(`git clone https://example.test/harnessy.git ${cacheDir}`);
+				expect(recorded).toContain(`git clone -- https://example.test/harnessy.git ${cacheDir}`);
 				// The faked clone created no files, confirming no snapshot copy happened either.
 				expect(yield* fs.exists(`${cacheDir}/install.sh`)).toBe(false);
+			}),
+		);
+	});
+
+	it.effect("halts the bootstrap when the git clone fails", () => {
+		const fake = makeFakeSpawner(() => ({ exitCode: 128, stderr: "fatal: repository not found" }));
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+
+				// A failed clone must fail the whole bootstrap rather than proceed to install.
+				const exit = yield* Effect.exit(
+					project.bootstrap({
+						mode: "in-place",
+						target: targetDir,
+						force: false,
+						yes: true,
+						applyBootstrap: true,
+						runExternal: true,
+						cloneSource: true,
+						globalRoot,
+						cacheDir: `${globalRoot}/.cache/harnessy`,
+						repoUrl: "https://example.test/missing.git",
+					}),
+				);
+				expect(exit._tag).toBe("Failure");
+				expect(yield* fs.exists(`${targetDir}/.harnessy`)).toBe(false);
 			}),
 		);
 	});
