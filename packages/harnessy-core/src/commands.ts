@@ -10,6 +10,8 @@ import {
 	renderCapabilityMaterializeJson,
 	renderDepsCheckJson,
 	renderDoctorJson,
+	renderSkillListJson,
+	renderSkillValidateJson,
 	renderVerifyJson,
 } from "./structured-output.ts";
 
@@ -643,6 +645,71 @@ const capabilityCommand = Command.make("capability").pipe(
 	Command.withDescription("Manage Harnessy capabilities"),
 );
 
+/** Validate project-local skill manifests and path guardrails. */
+const skillValidateCommand = Command.make(
+	"validate",
+	{
+		target: targetOption,
+		json: jsonOption,
+	},
+	({ target, json }) =>
+		Effect.gen(function* () {
+			const project = yield* HarnessProject;
+			const report = yield* project.validateSkills(target);
+			if (json) {
+				yield* Console.log(renderSkillValidateJson(target, report));
+			}
+			if (report.issues.length > 0) {
+				return yield* new HarnessError({
+					message: [
+						"Harnessy skill validation failed:",
+						...report.issues.map((issue) => `  - ${issue.message}`),
+					].join("\n"),
+				});
+			}
+			if (!json) {
+				yield* Console.log(
+					report.skillsDirExists
+						? `Skill validation passed (${report.skills.length} skills).`
+						: `No project-local skills found at ${report.skillsDir}.`,
+				);
+			}
+		}),
+).pipe(Command.withDescription("Validate project-local skill manifests and path guardrails"));
+
+/** List project-local skills with manifest summary. */
+const skillListCommand = Command.make(
+	"list",
+	{
+		target: targetOption,
+		json: jsonOption,
+	},
+	({ target, json }) =>
+		Effect.gen(function* () {
+			const project = yield* HarnessProject;
+			const report = yield* project.validateSkills(target);
+			if (json) {
+				yield* Console.log(renderSkillListJson(target, report));
+				return;
+			}
+			if (report.skills.length === 0) {
+				yield* Console.log(`No project-local skills found at ${report.skillsDir}.`);
+				return;
+			}
+			for (const skill of report.skills) {
+				yield* Console.log(
+					`${skill.directory}\t${skill.name ?? "?"}\t${skill.version ?? "?"}\t${skill.status ?? "?"}`,
+				);
+			}
+		}),
+).pipe(Command.withDescription("List project-local skills recorded under the configured skills directory"));
+
+/** Inspect and validate project-local skills. */
+const skillCommand = Command.make("skill").pipe(
+	Command.withSubcommands([skillValidateCommand, skillListCommand] as const),
+	Command.withDescription("Inspect and validate project-local skills"),
+);
+
 /** Check dependency declarations from installed capability manifests. */
 const depsCheckCommand = Command.make(
 	"check",
@@ -689,6 +756,7 @@ export const rootCommand = Command.make("harnessy").pipe(
 		verifyCommand,
 		doctorCommand,
 		capabilityCommand,
+		skillCommand,
 		depsCommand,
 	] as const),
 	Command.withDescription("Harnessy capability harness CLI"),

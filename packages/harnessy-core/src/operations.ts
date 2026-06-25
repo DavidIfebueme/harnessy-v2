@@ -29,6 +29,7 @@ import { ProfileStore } from "./profile-store.ts";
 import { ProjectDetector, type ProjectInfo } from "./project-detection.ts";
 import { type HarnessRuntimeAssetSyncResult, HarnessRuntimeAssets } from "./runtime-assets.ts";
 import { RuntimeEnvironment } from "./runtime-environment.ts";
+import { type SkillValidationReport, SkillValidator } from "./skill-validator.ts";
 
 export type { AddCapabilityResult } from "./capability-registry.ts";
 
@@ -239,6 +240,8 @@ export class HarnessProject extends Context.Service<
 		readonly verify: (target: string) => Effect.Effect<VerifyResult, HarnessError>;
 		/** Read environment diagnostics without mutating the project. */
 		readonly doctor: (target: string) => Effect.Effect<DoctorResult, HarnessError>;
+		/** Validate project-local skills (required manifest fields and v1 path guardrails). */
+		readonly validateSkills: (target: string) => Effect.Effect<SkillValidationReport, HarnessError>;
 		/** Read installed capability records from the lockfile. */
 		readonly listCapabilities: (target: string) => Effect.Effect<ReadonlyArray<CapabilityEntry>, HarnessError>;
 		/** Check dependency declarations from installed capability manifests. */
@@ -274,6 +277,7 @@ export class HarnessProject extends Context.Service<
 			const dependencies = yield* DependencyChecker;
 			const packageScripts = yield* PackageScripts;
 			const runtimeAssets = yield* HarnessRuntimeAssets;
+			const skillValidator = yield* SkillValidator;
 			const profiles = yield* ProfileStore;
 			const detector = yield* ProjectDetector;
 
@@ -593,6 +597,16 @@ export class HarnessProject extends Context.Service<
 				} satisfies VerifyResult;
 			});
 
+			const validateSkills = Effect.fn("HarnessProject.validateSkills")(function* (target: string) {
+				const resolved = yield* paths.resolve(target);
+				const lockfileExists = yield* lockfiles.exists(resolved);
+				const lockfile = lockfileExists ? yield* lockfiles.read(resolved) : null;
+				const installPaths = yield* resolveInstallPaths(resolved, lockfile?.installPaths, {}, false).pipe(
+					Effect.provideService(Path.Path, pathService),
+				);
+				return yield* skillValidator.validate(resolved, installPaths);
+			});
+
 			const doctor = Effect.fn("HarnessProject.doctor")(function* (target: string) {
 				const resolved = yield* paths.resolve(target);
 				const lockfileExists = yield* lockfiles.exists(resolved);
@@ -653,6 +667,7 @@ export class HarnessProject extends Context.Service<
 				install,
 				init,
 				verify,
+				validateSkills,
 				doctor,
 				listCapabilities,
 				checkDependencies,
@@ -677,6 +692,7 @@ export class HarnessProject extends Context.Service<
 		Layer.provideMerge(ManagedBlocks.layer),
 		Layer.provideMerge(PackageScripts.layer),
 		Layer.provideMerge(HarnessRuntimeAssets.layer),
+		Layer.provideMerge(SkillValidator.layer),
 		Layer.provideMerge(ProfileStore.layer),
 		Layer.provideMerge(ProjectDetector.layer),
 		Layer.provideMerge(RuntimeEnvironment.liveLayer),
