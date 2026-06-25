@@ -2,6 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import { FileSystem } from "effect";
 import * as Effect from "effect/Effect";
+import { TestConsole } from "effect/testing";
 import { Command } from "effect/unstable/cli";
 
 import { rootCommand } from "../src/commands.ts";
@@ -181,6 +182,42 @@ describe("Harnessy bootstrap", () => {
 				expect(result.bootstrap.issues.some((issue) => issue.includes("Jarvis"))).toBe(true);
 			}),
 		);
+	});
+
+	it.effect("reports failed external command counts and exit details in the CLI", () => {
+		const fake = makeFakeSpawner((call) =>
+			call.executable === "uv" ? { exitCode: 1, stderr: "uv blew up" } : { exitCode: 0 },
+		);
+		return provideWithFake(
+			fake,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const targetDir = yield* fs.makeTempDirectoryScoped();
+					const globalRoot = yield* fs.makeTempDirectoryScoped();
+					const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+
+					yield* run([
+						"bootstrap",
+						"--target",
+						targetDir,
+						"--yes",
+						"--apply-bootstrap",
+						"--run-external",
+						"--global-root",
+						globalRoot,
+						"--cache-dir",
+						`${globalRoot}/.cache/harnessy`,
+					]);
+
+					const logs = yield* TestConsole.logLines;
+					expect(logs).toContain("Failed external bootstrap actions: 1");
+					expect(logs).toContain(
+						"Failed external bootstrap action: Install Jarvis CLI into PATH (failed, exit code 1)",
+					);
+				}),
+			),
+		).pipe(Effect.provide(TestConsole.layer));
 	});
 
 	it.effect("does not execute external commands without --apply-bootstrap even if --run-external is set", () => {

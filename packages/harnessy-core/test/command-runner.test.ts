@@ -4,7 +4,7 @@ import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 
-import { CommandRunner } from "../src/command-runner.ts";
+import { CommandRunner, displayCommand } from "../src/command-runner.ts";
 import { type FakeSpawner, makeFakeSpawner } from "./lib/fake-spawner.ts";
 
 const withFake = <A, E>(fake: FakeSpawner, effect: Effect.Effect<A, E, CommandRunner>) =>
@@ -14,6 +14,12 @@ const withLive = <A, E>(effect: Effect.Effect<A, E, CommandRunner>) =>
 	effect.pipe(Effect.provide(CommandRunner.layer), Effect.provide(NodeServices.layer));
 
 describe("CommandRunner", () => {
+	it("renders argv display strings with shell-safe quoting", () => {
+		expect(displayCommand("tool", ["plain", "has space", "$HOME", "`tick`", "", "it's"])).toBe(
+			"tool plain 'has space' '$HOME' '`tick`' '' 'it'\\''s'",
+		);
+	});
+
 	it.effect("runs an argv command and captures exit code and output", () => {
 		const fake = makeFakeSpawner(() => ({ exitCode: 0, stdout: "hello\n" }));
 		return withFake(
@@ -56,7 +62,7 @@ describe("CommandRunner", () => {
 					args: ["-C", "/has a space", "pull"],
 				});
 				// Display quotes the spacey arg, but the spawned argv stays unsplit.
-				expect(result.command).toBe('git -C "/has a space" pull');
+				expect(result.command).toBe("git -C '/has a space' pull");
 				expect(fake.calls[0]?.args).toEqual(["-C", "/has a space", "pull"]);
 			}),
 		);

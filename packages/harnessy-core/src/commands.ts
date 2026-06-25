@@ -59,7 +59,7 @@ const applyBootstrapOption = Options.boolean("apply-bootstrap").pipe(
 const runExternalOption = Options.boolean("run-external").pipe(
 	Options.withDefault(false),
 	Options.withDescription(
-		"Execute runnable external bootstrap commands (git refresh, uv tool install). Requires --apply-bootstrap.",
+		"Execute runnable external bootstrap commands (git refresh, uv tool install). Requires --apply-bootstrap and does not run during --dry-run.",
 	),
 );
 
@@ -315,10 +315,16 @@ const bootstrapCommand = Command.make(
 			if (executedExternal.length > 0) {
 				yield* Console.log(`Executed external bootstrap actions: ${executedExternal.length}`);
 			}
+			if (failedExternal.length > 0) {
+				yield* Console.log(`Failed external bootstrap actions: ${failedExternal.length}`);
+			}
 			for (const action of failedExternal) {
-				yield* Console.log(
-					`Failed external bootstrap action: ${action.label}${action.run?.error ? ` (${action.run.error})` : ""}`,
-				);
+				const detail =
+					action.run?.error ??
+					(action.run?.status !== undefined && action.run.exitCode !== undefined
+						? `${action.run.status}, exit code ${action.run.exitCode}`
+						: action.run?.status);
+				yield* Console.log(`Failed external bootstrap action: ${action.label}${detail ? ` (${detail})` : ""}`);
 			}
 		}),
 ).pipe(Command.withDescription("Prepare or apply v1 install.sh bootstrap behavior"));

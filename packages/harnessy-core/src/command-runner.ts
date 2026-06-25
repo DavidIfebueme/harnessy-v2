@@ -79,9 +79,17 @@ const captureTail = <E>(stream: Stream.Stream<string, E>): Effect.Effect<string,
 		},
 	);
 
+const SHELL_SAFE_ARG = /^[A-Za-z0-9_./:@%+=,-]+$/;
+
+/** Quote one argv part for POSIX-shell copy/paste display. Display only — never parsed back. */
+const shellQuote = (part: string): string => {
+	if (part !== "" && SHELL_SAFE_ARG.test(part)) return part;
+	return `'${part.replaceAll("'", "'\\''")}'`;
+};
+
 /** Render an argv as a copy-pasteable display string. Display only — never parsed back. */
 export const displayCommand = (executable: string, args: ReadonlyArray<string>): string =>
-	[executable, ...args].map((part) => (/[\s"'$`\\]/.test(part) ? JSON.stringify(part) : part)).join(" ");
+	[executable, ...args].map(shellQuote).join(" ");
 
 /**
  * Executes explicit argv external commands and captures their result.
