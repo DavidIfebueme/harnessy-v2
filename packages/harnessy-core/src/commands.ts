@@ -10,6 +10,7 @@ import {
 	renderCapabilityMaterializeJson,
 	renderDepsCheckJson,
 	renderDoctorJson,
+	renderSkillListJson,
 	renderSkillValidateJson,
 	renderVerifyJson,
 } from "./structured-output.ts";
@@ -662,7 +663,7 @@ const skillListCommand = Command.make(
 			const project = yield* HarnessProject;
 			const report = yield* project.validateSkills(target);
 			if (json) {
-				yield* Console.log(renderSkillValidateJson(target, report));
+				yield* Console.log(renderSkillListJson(target, report));
 				return;
 			}
 			if (report.skills.length === 0) {

@@ -7,6 +7,7 @@ import { Command } from "effect/unstable/cli";
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
 import { HarnessProject } from "../src/operations.ts";
+import { renderSkillListJson, renderSkillValidateJson } from "../src/structured-output.ts";
 
 const provideLive = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 	effect.pipe(Effect.provide(HarnessProject.layer), Effect.provide(NodeServices.layer));
@@ -77,6 +78,20 @@ describe("SkillValidator", () => {
 				expect(report.skillsDirExists).toBe(false);
 				expect(report.ok).toBe(true);
 				expect(report.skills).toHaveLength(0);
+			}),
+		),
+	);
+
+	it.effect("tags JSON output with the correct command identity per command", () =>
+		provideLive(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const report = yield* project.validateSkills(targetDir);
+
+				expect(JSON.parse(renderSkillValidateJson(targetDir, report)).command).toBe("skill-validate");
+				expect(JSON.parse(renderSkillListJson(targetDir, report)).command).toBe("skill-list");
 			}),
 		),
 	);

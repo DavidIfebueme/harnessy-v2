@@ -799,9 +799,12 @@ export interface StructuredSkillIssue {
 	readonly file?: string;
 }
 
+/** Command identity for the skill structured payload. */
+export type StructuredSkillCommand = "skill-validate" | "skill-list";
+
 /** Stable structured payload for `harnessy skill validate --json` / `skill list --json`. */
 export interface StructuredSkillOutput {
-	readonly command: "skill-validate";
+	readonly command: StructuredSkillCommand;
 	readonly ok: boolean;
 	readonly target: string;
 	readonly skillsDir: string;
@@ -811,9 +814,13 @@ export interface StructuredSkillOutput {
 	readonly issues: ReadonlyArray<StructuredSkillIssue>;
 }
 
-/** Build the stable structured payload for skill validation. */
-export const skillValidateJsonOutput = (target: string, report: SkillValidationReport): StructuredSkillOutput => ({
-	command: "skill-validate",
+/** Build the stable structured payload for a skill command, tagged with its command identity. */
+export const skillJsonOutput = (
+	command: StructuredSkillCommand,
+	target: string,
+	report: SkillValidationReport,
+): StructuredSkillOutput => ({
+	command,
 	ok: report.ok,
 	target,
 	skillsDir: report.skillsDir,
@@ -835,7 +842,11 @@ export const skillValidateJsonOutput = (target: string, report: SkillValidationR
 
 /** Render the stable structured JSON text for `harnessy skill validate --json`. */
 export const renderSkillValidateJson = (target: string, report: SkillValidationReport): string =>
-	renderStructuredJson(skillValidateJsonOutput(target, report));
+	renderStructuredJson(skillJsonOutput("skill-validate", target, report));
+
+/** Render the stable structured JSON text for `harnessy skill list --json`. */
+export const renderSkillListJson = (target: string, report: SkillValidationReport): string =>
+	renderStructuredJson(skillJsonOutput("skill-list", target, report));
 
 /** Build the stable structured payload for `harnessy doctor --json`. */
 export const doctorJsonOutput = (target: string, result: DoctorResult): StructuredDoctorOutput => ({
