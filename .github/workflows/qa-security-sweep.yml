@@ -28,6 +28,9 @@ jobs:
   qa-security-sweep:
     name: QA Security Sweep
     runs-on: ubuntu-latest
+    env:
+      FEATURE_SLUG_INPUT: ${{ github.event.inputs.feature_slug || '' }}
+      SEVERITY_FLOOR: ${{ github.event.inputs.severity_floor || 'medium' }}
 
     steps:
       - name: Checkout repository
@@ -48,8 +51,8 @@ jobs:
       - name: Run QA Security Sweep skill
         id: security-sweep
         run: |
-          FEATURE_SLUG="${{ github.event.inputs.feature_slug }}"
-          SEVERITY="${{ github.event.inputs.severity_floor || 'medium' }}"
+          FEATURE_SLUG="${FEATURE_SLUG_INPUT}"
+          SEVERITY="${SEVERITY_FLOOR}"
 
           echo "Running /qa-security-sweep skill..."
           echo "Feature slug: ${FEATURE_SLUG:-'all'}"
@@ -86,6 +89,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const severityFloor = process.env.SEVERITY_FLOOR || 'medium';
             const title = `[Security] QA Sweep findings - ${new Date().toISOString().split('T')[0]}`;
             const body = [
               '## QA Security Sweep Findings',
@@ -97,7 +101,7 @@ jobs:
               'The automated QA security sweep detected findings.',
               'Please review the run artifacts and address all findings before the next sprint cycle.',
               '',
-              '**Severity Floor:** ${{ github.event.inputs.severity_floor || \'medium\' }}',
+              `**Severity Floor:** ${severityFloor}`,
               '',
               '/cc @Flow-Research/security',
             ].join('\n');
