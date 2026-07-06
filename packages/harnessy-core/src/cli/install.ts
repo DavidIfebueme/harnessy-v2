@@ -112,10 +112,13 @@ export const bootstrapCommand = Command.make(
 		Effect.gen(function* () {
 			const project = yield* HarnessProject;
 			const targetValue = Option.getOrUndefined(target);
+			if ((here || inPlace) && targetValue !== undefined) {
+				return yield* new HarnessError({ message: "Use either --here/--in-place or --target, not both." });
+			}
 			const mode = here || inPlace || targetValue !== undefined ? "in-place" : "bootstrap";
 			const result = yield* project.bootstrap({
 				mode,
-				target: targetValue ?? ".",
+				target: here || inPlace ? "." : (targetValue ?? "."),
 				force,
 				dryRun,
 				yes,
@@ -246,6 +249,9 @@ export const installCommand = Command.make(
 			}
 			if (result.scripts !== null && result.scripts.updated.length > 0) {
 				yield* Console.log(`Updated package scripts: ${result.scripts.updated.join(", ")}`);
+			}
+			if (result.scripts !== null && result.scripts.skipped.length > 0) {
+				yield* Console.log(`Skipped existing package scripts: ${result.scripts.skipped.join(", ")}`);
 			}
 			if (result.step === "skills") {
 				yield* Console.log(

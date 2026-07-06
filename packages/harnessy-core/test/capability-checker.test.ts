@@ -13,16 +13,26 @@ import {
 import { CapabilityEntry, CapabilitySource } from "../src/capabilities/source.ts";
 import type { HarnessPaths } from "../src/paths.ts";
 import { pathsForTarget } from "../src/paths.ts";
+import { CommandLookup } from "../src/runtime/command-lookup.ts";
 import { RuntimeEnvironment } from "../src/runtime/environment.ts";
 import { HarnessLockfile } from "../src/runtime/lockfile.ts";
 
 const addedAt = "2026-01-01T00:00:00.000Z";
 
-const runCheck = (paths: HarnessPaths, lockfile: HarnessLockfile, pathEntries: ReadonlyArray<string> = []) =>
+const runCheck = (
+	paths: HarnessPaths,
+	lockfile: HarnessLockfile,
+	pathEntries: ReadonlyArray<string> = [],
+	options: { readonly executableExtensions?: ReadonlyArray<string> } = {},
+) =>
 	Effect.gen(function* () {
 		const checker = yield* CapabilityChecker;
 		return yield* checker.checkLockfile(paths, lockfile);
-	}).pipe(Effect.provide(CapabilityChecker.layer), Effect.provide(RuntimeEnvironment.testLayer(pathEntries)));
+	}).pipe(
+		Effect.provide(CapabilityChecker.layer),
+		Effect.provide(CommandLookup.layer),
+		Effect.provide(RuntimeEnvironment.testLayer(pathEntries, options)),
+	);
 
 const lockfileWith = (capabilities: ReadonlyArray<CapabilityEntry>): HarnessLockfile =>
 	new HarnessLockfile({
@@ -84,6 +94,30 @@ describe("CapabilityChecker", () => {
 				["readme-contains-title", "passed", "File contains expected text: docs/README.md"],
 				["tiny-tool", "passed", "Tool available on PATH: tiny-tool"],
 			]);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("finds Windows command shims with PATHEXT-style suffixes", () =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const targetDir = yield* fs.makeTempDirectoryScoped();
+			const paths = yield* pathsForTarget(targetDir);
+			const binDir = yield* fs.makeTempDirectoryScoped();
+
+			yield* fs.makeDirectory(`${targetDir}/capability`, { recursive: true });
+			yield* fs.writeFileString(`${binDir}/tiny-tool.cmd`, "@echo off\r\n");
+			yield* fs.chmod(`${binDir}/tiny-tool.cmd`, 0o755);
+
+			const lockfile = lockfileWith([
+				capabilityWithChecks("local:checker", new CapabilitySource({ type: "local", value: "./capability" }), [
+					new ToolAvailableCheck({ id: "tiny-tool", kind: "tool-available", command: "tiny-tool" }),
+				]),
+			]);
+
+			const report = yield* runCheck(paths, lockfile, [binDir], { executableExtensions: [".CMD", ".EXE"] });
+
+			expect(report.issues).toEqual([]);
+			expect(report.results.map((result) => [result.checkId, result.status])).toEqual([["tiny-tool", "passed"]]);
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 

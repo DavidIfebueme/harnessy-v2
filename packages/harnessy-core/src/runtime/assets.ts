@@ -826,6 +826,7 @@ exec uv run --project "\${JARVIS_CLI_ROOT}" jarvis "$@"
 							}),
 						);
 						if (options.dryRun) written.push(targetDir);
+						yield* installSkillExecutableShims(skill.sourceDir, globals, options, actions, written);
 					}
 					const sharedTarget = path.join(globals.globalSkillsDir, "_shared");
 					actions.push(

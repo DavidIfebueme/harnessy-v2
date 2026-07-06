@@ -1,3 +1,5 @@
+import process from "node:process";
+
 import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import { FileSystem } from "effect";
@@ -108,7 +110,8 @@ describe("Harnessy bootstrap", () => {
 				expect(jarvis?.status).toBe("planned");
 				expect(jarvis?.argv?.executable).toBe("uv");
 				expect(refresh?.status).toBe("planned");
-				expect(refresh?.argv).toMatchObject({ executable: "git" });
+				expect(refresh?.unsafeExternal).toBe(false);
+				expect(refresh?.sourcePath).toContain("capability-harnessy-v1-full/resources/source");
 				// No command was actually spawned.
 				expect(fake.calls).toHaveLength(0);
 			}),
@@ -143,10 +146,13 @@ describe("Harnessy bootstrap", () => {
 				expect(jarvis?.status).toBe("written");
 				expect(jarvis?.run?.status).toBe("succeeded");
 				expect(refresh?.status).toBe("written");
+				expect(refresh?.unsafeExternal).toBe(false);
+				expect(refresh?.argv).toBeUndefined();
 
-				// The fake recorded the exact argv for each runnable action — no shell string.
+				// The fake recorded only the runnable argv action — no shell string and
+				// no git pull against the copied preserved-source snapshot.
 				const recorded = fake.calls.map((call) => [call.executable, ...call.args].join(" "));
-				expect(recorded).toContain(`git -C ${cacheDir} pull --ff-only`);
+				expect(recorded).not.toContain(`git -C ${cacheDir} pull --ff-only`);
 				expect(recorded).toContain(`uv tool install --force ${cacheDir}/jarvis-cli`);
 				expect(result.bootstrap.issues).toHaveLength(0);
 			}),
@@ -248,6 +254,36 @@ describe("Harnessy bootstrap", () => {
 		);
 	});
 
+	it.effect("does not apply global runtime writes when applyBootstrap is false even if applyGlobal is true", () => {
+		const fake = makeFakeSpawner();
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					applyGlobal: true,
+					globalRoot,
+					cacheDir: `${globalRoot}/.cache/harnessy`,
+					globalSkillsDir: `${globalRoot}/skills`,
+					globalCommandsDir: `${globalRoot}/bin`,
+				});
+
+				expect(result.dryRun).toBe(true);
+				expect(result.install.runtimeAssets?.globalApplied).toBe(false);
+				expect(yield* fs.exists(`${globalRoot}/bin/jarvis`)).toBe(false);
+				expect(yield* fs.exists(`${globalRoot}/skills/goal-agent/SKILL.md`)).toBe(false);
+				expect(fake.calls).toHaveLength(0);
+			}),
+		);
+	});
+
 	it.effect("plans a git clone for --clone-source and stays plan-only without --run-external", () => {
 		const fake = makeFakeSpawner();
 		return provideWithFake(
@@ -316,6 +352,38 @@ describe("Harnessy bootstrap", () => {
 		);
 	});
 
+	it.effect("plans git refresh only when the bootstrap source was cloned", () => {
+		const fake = makeFakeSpawner();
+		return provideWithFake(
+			fake,
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
+				const cacheDir = `${globalRoot}/.cache/harnessy`;
+
+				const result = yield* project.bootstrap({
+					mode: "in-place",
+					target: targetDir,
+					force: false,
+					applyBootstrap: true,
+					cloneSource: true,
+					refreshSource: true,
+					globalRoot,
+					cacheDir,
+					repoUrl: "https://example.test/harnessy.git",
+				});
+
+				const refresh = result.bootstrap.actions.find((action) => action.kind === "source-refresh");
+				expect(refresh?.status).toBe("planned");
+				expect(refresh?.unsafeExternal).toBe(true);
+				expect(refresh?.argv).toMatchObject({ executable: "git", args: ["-C", cacheDir, "pull", "--ff-only"] });
+				expect(fake.calls).toHaveLength(0);
+			}),
+		);
+	});
+
 	it.effect("halts the bootstrap when the git clone fails", () => {
 		const fake = makeFakeSpawner(() => ({ exitCode: 128, stderr: "fatal: repository not found" }));
 		return provideWithFake(
@@ -377,6 +445,56 @@ describe("Harnessy bootstrap", () => {
 					expect(yield* fs.exists(`${cacheDir}/tools/flow-install/index.mjs`)).toBe(true);
 					expect(yield* fs.exists(`${targetDir}/.harnessy/context/AGENTS.md`)).toBe(true);
 					expect(yield* fs.exists(`${globalRoot}/bin/jarvis`)).toBe(true);
+				}),
+			),
+		),
+	);
+
+	it.live("resolves --here against the current working directory", () =>
+		provideLive(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const targetDir = yield* fs.makeTempDirectoryScoped();
+					const globalRoot = yield* fs.makeTempDirectoryScoped();
+					const cacheDir = `${globalRoot}/.cache/harnessy`;
+					const previousCwd = yield* Effect.sync(() => {
+						const current = process.cwd();
+						process.chdir(targetDir);
+						return current;
+					});
+					yield* Effect.addFinalizer(() => Effect.sync(() => process.chdir(previousCwd)));
+					const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+
+					yield* run([
+						"bootstrap",
+						"--here",
+						"--yes",
+						"--apply-bootstrap",
+						"--global-root",
+						globalRoot,
+						"--cache-dir",
+						cacheDir,
+					]);
+
+					expect(yield* fs.exists(`${targetDir}/.harnessy/harnessy.lock.json`)).toBe(true);
+					expect(yield* fs.exists(`${cacheDir}/tools/flow-install/index.mjs`)).toBe(true);
+				}),
+			),
+		),
+	);
+
+	it.live("rejects --here with --target instead of silently choosing one", () =>
+		provideLive(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const targetDir = yield* fs.makeTempDirectoryScoped();
+					const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+
+					const exit = yield* Effect.exit(run(["bootstrap", "--here", "--target", targetDir]));
+
+					expect(exit._tag).toBe("Failure");
 				}),
 			),
 		),

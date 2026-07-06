@@ -28,6 +28,7 @@ import {
 	type HarnessBootstrapMode,
 	type HarnessBootstrapPrepareResult,
 } from "./runtime/bootstrap.ts";
+import { CommandLookup } from "./runtime/command-lookup.ts";
 import { CommandRunner } from "./runtime/command-runner.ts";
 import { DependencyChecker, type DependencyReport } from "./runtime/dependency-checker.ts";
 import { RuntimeEnvironment } from "./runtime/environment.ts";
@@ -1020,6 +1021,7 @@ export class HarnessProject extends Context.Service<
 			Layer.provideMerge(CapabilityFingerprinter.layer),
 			Layer.provideMerge(CapabilityMaterializer.layer),
 			Layer.provideMerge(DependencyChecker.layer),
+			Layer.provideMerge(CommandLookup.layer),
 			Layer.provideMerge(LockfileStore.layer),
 			Layer.provideMerge(GeneratedFiles.layer),
 			Layer.provideMerge(ManagedBlocks.layer),

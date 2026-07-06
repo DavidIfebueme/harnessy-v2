@@ -20,6 +20,7 @@ import {
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
 import { HarnessProject } from "../src/operations.ts";
+import { CommandLookup } from "../src/runtime/command-lookup.ts";
 import { DependencyChecker } from "../src/runtime/dependency-checker.ts";
 import { RuntimeEnvironment } from "../src/runtime/environment.ts";
 import { formatLockfile, HarnessLockfile, parseLockfile } from "../src/runtime/lockfile.ts";
@@ -89,13 +90,64 @@ describe("dependencies", () => {
 			const report = yield* Effect.gen(function* () {
 				const checker = yield* DependencyChecker;
 				return yield* checker.checkLockfile(lockfile);
-			}).pipe(Effect.provide(DependencyChecker.layer), Effect.provide(RuntimeEnvironment.testLayer([binDir])));
+			}).pipe(
+				Effect.provide(DependencyChecker.layer),
+				Effect.provide(CommandLookup.layer),
+				Effect.provide(RuntimeEnvironment.testLayer([binDir])),
+			);
 
 			expect(report.results.map((result) => [result.name, result.status])).toEqual([
 				["tiny-tool", "available"],
 				["missing-tool", "missing"],
 			]);
 			expect(report.missingRequired.map((result) => result.name)).toEqual(["missing-tool"]);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("checks Windows tool dependencies through PATHEXT-style suffixes", () =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const binDir = yield* fs.makeTempDirectoryScoped();
+			yield* fs.writeFileString(`${binDir}/pnpm.cmd`, "@echo off\r\n");
+			yield* fs.chmod(`${binDir}/pnpm.cmd`, 0o755);
+
+			const lockfile = new HarnessLockfile({
+				version: 1,
+				harnessDir: ".harnessy",
+				contextDir: ".harnessy/context",
+				profile: ".harnessy/profiles/default.json",
+				capabilities: [
+					new CapabilityEntry({
+						id: "local:tiny-capability",
+						source: new CapabilitySource({ type: "local", value: "./tiny-capability" }),
+						addedAt: "2026-01-01T00:00:00.000Z",
+						manifest: new CapabilityManifest({
+							id: "local:tiny-capability",
+							name: "Tiny Capability",
+							dependencies: [
+								new DependencyRequirement({
+									kind: "tool",
+									name: "pnpm",
+									command: "pnpm",
+									required: true,
+								}),
+							],
+						}),
+					}),
+				],
+			});
+
+			const report = yield* Effect.gen(function* () {
+				const checker = yield* DependencyChecker;
+				return yield* checker.checkLockfile(lockfile);
+			}).pipe(
+				Effect.provide(DependencyChecker.layer),
+				Effect.provide(CommandLookup.layer),
+				Effect.provide(RuntimeEnvironment.testLayer([binDir], { executableExtensions: [".CMD", ".EXE"] })),
+			);
+
+			expect(report.results.map((result) => [result.name, result.status])).toEqual([["pnpm", "available"]]);
+			expect(report.missingRequired).toEqual([]);
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 });
@@ -239,7 +291,7 @@ describe("Harnessy CLI", () => {
 });
 
 describe("HarnessProject", () => {
-	it.effect("installs package scripts without overwriting existing commands", () =>
+	it.effect("installs package scripts without overwriting existing foreign commands", () =>
 		provideLive(
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
@@ -247,7 +299,7 @@ describe("HarnessProject", () => {
 				const targetDir = yield* fs.makeTempDirectoryScoped();
 				yield* fs.writeFileString(
 					`${targetDir}/package.json`,
-					JSON.stringify({ scripts: { "harness:verify": "custom verify" } }),
+					JSON.stringify({ scripts: { "harness:verify": "custom verify", postinstall: "prisma generate" } }),
 				);
 
 				const install = yield* project.runInstaller(targetDir, {
@@ -267,9 +319,9 @@ describe("HarnessProject", () => {
 					"flow:sync:force",
 					"flow:sync:remote",
 					"flow:sync:remote:force",
-					"postinstall",
 				]);
-				expect(install.scripts?.updated).toEqual(["harness:verify"]);
+				expect(install.scripts?.updated).toEqual([]);
+				expect(install.scripts?.skipped).toEqual(["harness:verify", "postinstall"]);
 
 				const packageJson = JSON.parse(yield* fs.readFileString(`${targetDir}/package.json`)) as {
 					readonly scripts: Record<string, string>;
@@ -277,6 +329,40 @@ describe("HarnessProject", () => {
 				expect(packageJson.scripts["skills:validate"]).toBe("node scripts/flow/validate-skills.mjs");
 				expect(packageJson.scripts["skills:register:codex"]).toBe("node scripts/flow/register-codex-skills.mjs");
 				expect(packageJson.scripts["flow:cleanup"]).toBe("node scripts/flow/cleanup-stale-plugins.mjs");
+				expect(packageJson.scripts["harness:verify"]).toBe("custom verify");
+				expect(packageJson.scripts.postinstall).toBe("prisma generate");
+			}),
+		),
+	);
+
+	it.effect("updates package scripts that were previously written by Harnessy", () =>
+		provideLive(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const project = yield* HarnessProject;
+				const targetDir = yield* fs.makeTempDirectoryScoped();
+				yield* fs.writeFileString(
+					`${targetDir}/package.json`,
+					JSON.stringify({
+						scripts: {
+							"harness:verify": "node scripts/harnessy/verify-harness.mjs",
+							postinstall: "node scripts/harnessy/sync-rules.mjs",
+						},
+					}),
+				);
+
+				const install = yield* project.runInstaller(targetDir, {
+					force: false,
+					step: "package-scripts",
+					reconfigure: true,
+					installPathOverrides: { scriptsDir: "scripts/flow" },
+				});
+
+				expect(install.scripts?.updated).toEqual(["harness:verify", "postinstall"]);
+				expect(install.scripts?.skipped).toEqual([]);
+				const packageJson = JSON.parse(yield* fs.readFileString(`${targetDir}/package.json`)) as {
+					readonly scripts: Record<string, string>;
+				};
 				expect(packageJson.scripts["harness:verify"]).toBe("node scripts/flow/verify-harness.mjs");
 				expect(packageJson.scripts.postinstall).toBe("node scripts/flow/sync-rules.mjs");
 			}),

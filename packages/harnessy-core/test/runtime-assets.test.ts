@@ -40,6 +40,9 @@ describe("Harnessy runtime assets", () => {
 						.filter((action) => action.unsafeGlobal)
 						.every((action) => action.status === "planned"),
 				).toBe(true);
+				const globalKinds =
+					result.runtimeAssets?.actions.filter((action) => action.unsafeGlobal).map((action) => action.kind) ?? [];
+				expect(globalKinds).toContain("global-skill-shim");
 			}),
 		),
 	);
@@ -50,11 +53,15 @@ describe("Harnessy runtime assets", () => {
 				const fs = yield* FileSystem.FileSystem;
 				const project = yield* HarnessProject;
 				const targetDir = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = yield* fs.makeTempDirectoryScoped();
 
 				const result = yield* project.runInstaller(targetDir, {
 					force: false,
 					step: "runtime-assets",
 					reconfigure: true,
+					globalRoot,
+					globalCommandsDir: `${globalRoot}/bin`,
+					globalSkillsDir: `${globalRoot}/skills`,
 					installPathOverrides: { scriptsDir: "scripts/flow" },
 				});
 
@@ -80,6 +87,9 @@ describe("Harnessy runtime assets", () => {
 						.filter((action) => action.unsafeGlobal)
 						.every((action) => action.status === "planned" || action.status === "skipped"),
 				).toBe(true);
+				for (const action of result.runtimeAssets?.actions.filter((action) => action.unsafeGlobal) ?? []) {
+					expect(yield* fs.exists(action.targetPath)).toBe(false);
+				}
 			}),
 		),
 	);
@@ -90,7 +100,8 @@ describe("Harnessy runtime assets", () => {
 				const fs = yield* FileSystem.FileSystem;
 				const project = yield* HarnessProject;
 				const targetDir = yield* fs.makeTempDirectoryScoped();
-				const globalRoot = yield* fs.makeTempDirectoryScoped();
+				const globalParent = yield* fs.makeTempDirectoryScoped();
+				const globalRoot = `${globalParent}/global root`;
 				yield* fs.makeDirectory(`${globalRoot}/.config/opencode`, { recursive: true });
 				yield* fs.writeFileString(
 					`${globalRoot}/.config/opencode/opencode.json`,
@@ -142,6 +153,7 @@ describe("Harnessy runtime assets", () => {
 				}
 				expect(yield* fs.exists(`${globalRoot}/skills/goal-agent/SKILL.md`)).toBe(true);
 				const jarvisShim = yield* fs.readFileString(`${globalRoot}/bin/jarvis`);
+				expect(jarvisShim).toContain('JARVIS_CLI_ROOT="${HARNESSY_JARVIS_CLI_ROOT:-');
 				expect(jarvisShim).toContain("uv run --project");
 				expect(jarvisShim).toContain("jarvis-cli");
 				expect((yield* fs.stat(traceSource)).mode).toBe(traceSourceMode);

@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { causeMessage, HarnessError } from "../errors.ts";
 import type { HarnessPaths } from "../paths.ts";
-import { RuntimeEnvironment } from "../runtime/environment.ts";
+import { CommandLookup } from "../runtime/command-lookup.ts";
 import type { HarnessLockfile } from "../runtime/lockfile.ts";
 import type { CapabilityCheck } from "./manifest.ts";
 import type { CapabilityEntry } from "./source.ts";
@@ -90,7 +90,7 @@ export class CapabilityChecker extends Context.Service<
 		Effect.gen(function* () {
 			const fs = yield* FileSystem.FileSystem;
 			const path = yield* Path.Path;
-			const environment = yield* RuntimeEnvironment;
+			const commandLookup = yield* CommandLookup;
 
 			/** Convert platform failures into the Harnessy typed error channel. */
 			const mapPlatformError = (action: string, cause: unknown): HarnessError =>
@@ -106,27 +106,6 @@ export class CapabilityChecker extends Context.Service<
 				}
 				return resolved;
 			};
-
-			/** True when `filePath` exists, is a file, and has any executable bit. */
-			const isExecutableFile = (filePath: string) =>
-				Effect.gen(function* () {
-					const exists = yield* fs
-						.exists(filePath)
-						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not inspect ${filePath}`, cause)));
-					if (!exists) return false;
-					const stat = yield* fs
-						.stat(filePath)
-						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not stat ${filePath}`, cause)));
-					return stat.type === "File" && (stat.mode & 0o111) !== 0;
-				});
-
-			/** Find an executable on PATH without invoking a shell. */
-			const commandAvailable = Effect.fn("CapabilityChecker.commandAvailable")(function* (command: string) {
-				for (const pathEntry of yield* environment.pathEntries) {
-					if (yield* isExecutableFile(path.join(pathEntry, command))) return true;
-				}
-				return false;
-			});
 
 			/** Resolve and validate the local source root for a capability. */
 			const localRootStatus = Effect.fn("CapabilityChecker.localRootStatus")(function* (
@@ -219,7 +198,7 @@ export class CapabilityChecker extends Context.Service<
 				capability: CapabilityEntry,
 				check: Extract<CapabilityCheck, { readonly kind: "tool-available" }>,
 			) {
-				const available = yield* commandAvailable(check.command);
+				const available = yield* commandLookup.commandAvailable(check.command);
 				return makeResult(
 					capability,
 					check,

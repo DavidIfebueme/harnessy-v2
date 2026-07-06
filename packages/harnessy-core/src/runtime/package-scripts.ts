@@ -51,6 +51,8 @@ export interface PackageScriptPatchResult {
 	readonly updated: ReadonlyArray<string>;
 	/** V1 lifecycle script keys already present before patching. */
 	readonly existing: ReadonlyArray<string>;
+	/** Script keys left untouched because a non-Harnessy command already exists. */
+	readonly skipped: ReadonlyArray<string>;
 }
 
 /** Narrow unknown JSON values to mutable records for package.json patching. */
@@ -65,6 +67,25 @@ const getScriptsRecord = (pkg: Record<string, unknown>): Record<string, unknown>
 	pkg.scripts = nextScripts;
 	return nextScripts;
 };
+
+const scriptCommandMatchers: Readonly<Record<string, RegExp>> = {
+	"skills:validate": /^node .+\/validate-skills\.mjs$/,
+	"skills:register": /^node .+\/register-skills\.mjs$/,
+	"skills:register:claude": /^node .+\/register-claude-skills\.mjs$/,
+	"skills:register:opencode": /^node .+\/register-opencode-skills\.mjs$/,
+	"skills:register:codex": /^node .+\/register-codex-skills\.mjs$/,
+	"flow:cleanup": /^node .+\/cleanup-stale-plugins\.mjs$/,
+	"flow:sync": /^\bbash \$\{HOME\}\/\.cache\/harnessy\/install\.sh --in-place\b.*$/,
+	"flow:sync:force": /^\bbash \$\{HOME\}\/\.cache\/harnessy\/install\.sh --in-place --force\b.*$/,
+	"flow:sync:remote": /^\bbash \$\{HOME\}\/\.cache\/harnessy\/install\.sh --in-place --refresh-source\b.*$/,
+	"flow:sync:remote:force":
+		/^\bbash \$\{HOME\}\/\.cache\/harnessy\/install\.sh --in-place --refresh-source --force\b.*$/,
+	"harness:verify": /^node .+\/verify-harness\.mjs$/,
+	postinstall: /^node .+\/sync-rules\.mjs$/,
+};
+
+const isHarnessyManagedScript = (name: string, command: string): boolean =>
+	scriptCommandMatchers[name]?.test(command.replaceAll("\\", "/")) ?? false;
 
 /** Adds v1 flow-install lifecycle scripts to package.json. */
 export class PackageScripts extends Context.Service<
@@ -104,6 +125,7 @@ export class PackageScripts extends Context.Service<
 						added: [],
 						updated: [],
 						existing: [],
+						skipped: [],
 					} satisfies PackageScriptPatchResult;
 				}
 
@@ -126,13 +148,18 @@ export class PackageScripts extends Context.Service<
 				const added: Array<string> = [];
 				const updated: Array<string> = [];
 				const existing: Array<string> = [];
+				const skipped: Array<string> = [];
 				for (const [name, command] of Object.entries(harnessyPackageScriptsFor(options.installPaths.scriptsDir))) {
 					if (scripts[name] === command) {
 						existing.push(name);
 						continue;
 					}
-					if (typeof scripts[name] === "string") {
+					const current = scripts[name];
+					if (typeof current === "string" && isHarnessyManagedScript(name, current)) {
 						updated.push(name);
+					} else if (current !== undefined) {
+						skipped.push(name);
+						continue;
 					} else {
 						added.push(name);
 					}
@@ -155,6 +182,7 @@ export class PackageScripts extends Context.Service<
 					added,
 					updated,
 					existing,
+					skipped,
 				} satisfies PackageScriptPatchResult;
 			});
 

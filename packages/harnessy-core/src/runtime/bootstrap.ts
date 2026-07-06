@@ -8,6 +8,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { causeMessage, HarnessError } from "../errors.ts";
+import { CommandLookup } from "./command-lookup.ts";
 import { CommandRunner, CommandRunResult, displayCommand } from "./command-runner.ts";
 import { RuntimeEnvironment } from "./environment.ts";
 
@@ -148,6 +149,7 @@ export class HarnessBootstrap extends Context.Service<
 			const fs = yield* FileSystem.FileSystem;
 			const path = yield* Path.Path;
 			const environment = yield* RuntimeEnvironment;
+			const commandLookup = yield* CommandLookup;
 			const commandRunner = yield* CommandRunner;
 
 			const mapPlatformError = (action: string, cause: unknown): HarnessError =>
@@ -158,11 +160,6 @@ export class HarnessBootstrap extends Context.Service<
 				if (value.startsWith("~/")) return path.join(home, value.slice(2));
 				return value;
 			};
-
-			const exists = (filePath: string) =>
-				fs
-					.exists(filePath)
-					.pipe(Effect.mapError((cause) => mapPlatformError(`Could not inspect ${filePath}`, cause)));
 
 			const makeDirectory = (directory: string) =>
 				fs
@@ -181,28 +178,12 @@ export class HarnessBootstrap extends Context.Service<
 						);
 				});
 
-			const isExecutableFile = (filePath: string) =>
-				Effect.gen(function* () {
-					if (!(yield* exists(filePath))) return false;
-					const info = yield* fs
-						.stat(filePath)
-						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not stat ${filePath}`, cause)));
-					return info.type === "File" && (info.mode & 0o111) !== 0;
-				});
-
-			const commandAvailable = Effect.fn("HarnessBootstrap.commandAvailable")(function* (command: string) {
-				for (const pathEntry of yield* environment.pathEntries) {
-					if (yield* isExecutableFile(path.join(pathEntry, command))) return true;
-				}
-				return false;
-			});
-
 			const toolAction = Effect.fn("HarnessBootstrap.toolAction")(function* (
 				label: string,
 				command: string,
 				installCommand: string,
 			) {
-				const available = yield* commandAvailable(command);
+				const available = yield* commandLookup.commandAvailable(command);
 				return makeAction({
 					kind: "tool-check",
 					label,
@@ -287,8 +268,8 @@ export class HarnessBootstrap extends Context.Service<
 
 				actions.push(yield* toolAction("Ensure uv", "uv", "curl -LsSf https://astral.sh/uv/install.sh | sh"));
 				actions.push(yield* toolAction("Ensure Node.js", "node", "Install Node 18+ and rerun Harnessy."));
-				const pnpmAvailable = yield* commandAvailable("pnpm");
-				const corepackAvailable = yield* commandAvailable("corepack");
+				const pnpmAvailable = yield* commandLookup.commandAvailable("pnpm");
+				const corepackAvailable = yield* commandLookup.commandAvailable("corepack");
 				actions.push(
 					makeAction({
 						kind: "tool-check",
@@ -379,17 +360,42 @@ export class HarnessBootstrap extends Context.Service<
 				}
 
 				if (options.refreshSource === true) {
-					actions.push(
-						yield* externalAction({
-							kind: "source-refresh",
-							label: "Refresh Harnessy source",
-							executable: "git",
-							args: ["-C", flowRoot, "pull", "--ff-only"],
-							targetPath: flowRoot,
-							reason:
-								"Native bootstrap uses the preserved v1 source snapshot; remote git refresh runs only with --run-external.",
-						}),
-					);
+					if (wantsClone) {
+						actions.push(
+							yield* externalAction({
+								kind: "source-refresh",
+								label: "Refresh Harnessy source",
+								executable: "git",
+								args: ["-C", flowRoot, "pull", "--ff-only"],
+								targetPath: flowRoot,
+								reason: "Remote git refresh runs only after a cloned source exists and --run-external is set.",
+							}),
+						);
+					} else if (dryRun || options.applyBootstrap !== true) {
+						actions.push(
+							makeAction({
+								kind: "source-refresh",
+								label: "Refresh Harnessy source from preserved snapshot",
+								status: "planned",
+								unsafeExternal: false,
+								sourcePath: preservedV1SourceRoot,
+								targetPath: flowRoot,
+								reason: "Snapshot refresh writes require --apply-bootstrap.",
+							}),
+						);
+					} else {
+						yield* copyPath(preservedV1SourceRoot, flowRoot);
+						actions.push(
+							makeAction({
+								kind: "source-refresh",
+								label: "Refreshed Harnessy source from preserved snapshot",
+								status: "written",
+								unsafeExternal: false,
+								sourcePath: preservedV1SourceRoot,
+								targetPath: flowRoot,
+							}),
+						);
+					}
 				}
 
 				const jarvisCliPath = path.join(flowRoot, "jarvis-cli");

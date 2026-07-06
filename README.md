@@ -19,7 +19,6 @@ From this workspace:
 ```bash
 npm install
 npm run build
-# the CLI ships as the `harnessy` bin of @harnessy/core
 node packages/harnessy-core/dist/cli.js --help
 ```
 
@@ -74,7 +73,7 @@ Harnessy builds on the **Pi** agent runtime, vendored in this monorepo:
 
 ```bash
 npm install          # install dependencies
-npm run build        # build the runtime packages
+npm run build        # build the runtime packages and Harnessy CLI
 npm test             # run package test suites
 npm run check        # biome + type-check + lint + repo checks
 ```

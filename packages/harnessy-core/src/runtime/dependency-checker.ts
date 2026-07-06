@@ -1,12 +1,12 @@
-import { FileSystem, Path, Schema } from "effect";
+import { Schema } from "effect";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import type { DependencyRequirement } from "../capabilities/manifest.ts";
 import type { CapabilityEntry } from "../capabilities/source.ts";
-import { causeMessage, HarnessError } from "../errors.ts";
-import { RuntimeEnvironment } from "./environment.ts";
+import type { HarnessError } from "../errors.ts";
+import { CommandLookup } from "./command-lookup.ts";
 import type { HarnessLockfile } from "./lockfile.ts";
 
 /** Dependency check status. */
@@ -67,34 +67,7 @@ export class DependencyChecker extends Context.Service<
 	static readonly layer = Layer.effect(
 		DependencyChecker,
 		Effect.gen(function* () {
-			const fs = yield* FileSystem.FileSystem;
-			const path = yield* Path.Path;
-			const environment = yield* RuntimeEnvironment;
-
-			/** Convert platform failures into the Harnessy typed error channel. */
-			const mapPlatformError = (action: string, cause: unknown): HarnessError =>
-				new HarnessError({ message: `${action}: ${causeMessage(cause)}`, cause });
-
-			/** True when `filePath` exists, is a file, and has any executable bit. */
-			const isExecutableFile = (filePath: string) =>
-				Effect.gen(function* () {
-					const exists = yield* fs
-						.exists(filePath)
-						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not inspect ${filePath}`, cause)));
-					if (!exists) return false;
-					const stat = yield* fs
-						.stat(filePath)
-						.pipe(Effect.mapError((cause) => mapPlatformError(`Could not stat ${filePath}`, cause)));
-					return stat.type === "File" && (stat.mode & 0o111) !== 0;
-				});
-
-			/** Find an executable on PATH without invoking a shell. */
-			const commandAvailable = Effect.fn("DependencyChecker.commandAvailable")(function* (command: string) {
-				for (const pathEntry of yield* environment.pathEntries) {
-					if (yield* isExecutableFile(path.join(pathEntry, command))) return true;
-				}
-				return false;
-			});
+			const commandLookup = yield* CommandLookup;
 
 			/** Check one dependency declaration for a capability. */
 			const checkDependency = Effect.fn("DependencyChecker.checkDependency")(function* (
@@ -105,7 +78,7 @@ export class DependencyChecker extends Context.Service<
 				const command = dependency.kind === "tool" ? executableName(dependency) : undefined;
 				const status =
 					dependency.kind === "tool" && command !== undefined
-						? (yield* commandAvailable(command))
+						? (yield* commandLookup.commandAvailable(command))
 							? "available"
 							: "missing"
 						: "unknown";

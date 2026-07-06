@@ -11,16 +11,30 @@ export class RuntimeEnvironment extends Context.Service<
 	{
 		/** PATH entries used for executable lookup. */
 		readonly pathEntries: Effect.Effect<ReadonlyArray<string>>;
+		/** Platform executable suffixes, such as PATHEXT on Windows. Empty elsewhere. */
+		readonly executableExtensions: Effect.Effect<ReadonlyArray<string>>;
 	}
 >()("@harnessy/core/RuntimeEnvironment") {
 	/** Live environment backed by `process.env`. */
 	static readonly liveLayer = Layer.sync(RuntimeEnvironment, () => ({
 		pathEntries: Effect.sync(() => (process.env.PATH ?? "").split(delimiter).filter((entry) => entry.length > 0)),
+		executableExtensions: Effect.sync(() =>
+			process.platform === "win32"
+				? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+						.split(";")
+						.map((entry) => entry.trim())
+						.filter((entry) => entry.length > 0)
+				: [],
+		),
 	}));
 
 	/** Test environment with caller-controlled PATH entries. */
-	static readonly testLayer = (pathEntries: ReadonlyArray<string>) =>
+	static readonly testLayer = (
+		pathEntries: ReadonlyArray<string>,
+		options: { readonly executableExtensions?: ReadonlyArray<string> } = {},
+	) =>
 		Layer.succeed(RuntimeEnvironment, {
 			pathEntries: Effect.succeed(pathEntries),
+			executableExtensions: Effect.succeed(options.executableExtensions ?? []),
 		});
 }
