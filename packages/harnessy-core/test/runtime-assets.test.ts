@@ -103,9 +103,14 @@ describe("Harnessy runtime assets", () => {
 				const globalParent = yield* fs.makeTempDirectoryScoped();
 				const globalRoot = `${globalParent}/global root`;
 				yield* fs.makeDirectory(`${globalRoot}/.config/opencode`, { recursive: true });
+				yield* fs.makeDirectory(`${globalRoot}/skills/qa-runtime`, { recursive: true });
 				yield* fs.writeFileString(
 					`${globalRoot}/.config/opencode/opencode.json`,
 					JSON.stringify({ skills: { paths: [] } }),
+				);
+				yield* fs.writeFileString(
+					`${globalRoot}/skills/qa-runtime/manifest.yaml`,
+					"name: qa-runtime\nmetadata:\n  version: 999.0.0\n",
 				);
 				const traceSource =
 					"../../packages/capability-harnessy-v1-full/resources/source/tools/flow-install/scripts/instrument-traces.py";
@@ -160,6 +165,20 @@ describe("Harnessy runtime assets", () => {
 				expect(yield* fs.exists(`${globalRoot}/skills/_shared`)).toBe(true);
 				expect(yield* fs.exists(`${globalRoot}/.config/harnessy/tmux-agent-launcher.json`)).toBe(true);
 				expect(yield* fs.exists(`${globalRoot}/.claude/plugins/known_marketplaces.json`)).toBe(true);
+				const knownMarketplacesPath = `${globalRoot}/.claude/plugins/known_marketplaces.json`;
+				const knownMarketplaces = yield* fs.readFileString(knownMarketplacesPath);
+				expect(knownMarketplaces).not.toContain("lastUpdated");
+				yield* project.runInstaller(targetDir, {
+					force: false,
+					step: "runtime-assets",
+					reconfigure: true,
+					applyGlobal: true,
+					globalRoot,
+					globalCommandsDir: `${globalRoot}/bin`,
+					globalSkillsDir: `${globalRoot}/skills`,
+					installPathOverrides: { scriptsDir: "scripts/flow" },
+				});
+				expect(yield* fs.readFileString(knownMarketplacesPath)).toBe(knownMarketplaces);
 				expect(yield* fs.exists(`${globalRoot}/.codex/skills/harnessy/goal-agent/SKILL.md`)).toBe(true);
 				const openCodeConfig = yield* fs.readFileString(`${globalRoot}/.config/opencode/opencode.json`);
 				expect(openCodeConfig).toContain(`${globalRoot}/skills`);

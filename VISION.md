@@ -57,10 +57,11 @@ Done (native Effect services in `packages/harnessy-core`):
 - Native `bootstrap` mirroring v1 `install.sh` modes (plan-only by default).
 - `CommandRunner` (gated, argv-only external execution; git source refresh, clone, uv tool install).
 - Skill lifecycle start: `skill validate`, `skill list`, `skill create`.
+- Connector/runtime cleanup: AnyType list/search pagination, deterministic Claude marketplace registration, and safer manifest parsing for global skill installs.
 
 Next (toward the direction, not more installer plumbing):
 - Re-home v1 connectors (AnyType/Notion/GitHub/meetings) as Harnessy connector capabilities with a reviewed execution boundary.
-- Agent-first capability resolution/runtime on Pi.
+- Agent-first capability resolution/runtime as a Pi extension, so Harnessy capabilities can be loaded by the agent instead of only run through standalone CLI commands.
 - Knowledge-workflow capabilities (ingest → brief → issues/tasks), building on `capability-org-knowledge`.
 - Native Jarvis layer on Pi.
 

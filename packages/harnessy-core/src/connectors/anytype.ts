@@ -22,6 +22,7 @@ export const ANYTYPE_DEFAULT_BASE_URL = "http://127.0.0.1:31009";
  */
 /** Default per-request timeout (ms) so a hung local API can't wedge the CLI. */
 export const ANYTYPE_DEFAULT_TIMEOUT_MS = 10_000;
+const ANYTYPE_MAX_PAGES = 100;
 
 export class AnytypeConfig extends Context.Service<
 	AnytypeConfig,
@@ -72,13 +73,32 @@ export class AnytypeObject extends Schema.Class<AnytypeObject>("AnytypeObject")(
 // Lenient wire schemas — decode only the fields we expose and ignore the rest,
 // so AnyType adding fields never breaks the connector.
 const TypeRef = Schema.optional(Schema.Struct({ name: Schema.optional(Schema.String) }));
+const PaginationEnvelope = Schema.Struct({
+	has_more: Schema.optional(Schema.Boolean),
+	hasMore: Schema.optional(Schema.Boolean),
+	next_cursor: Schema.optional(Schema.String),
+	nextCursor: Schema.optional(Schema.String),
+	offset: Schema.optional(Schema.Number),
+	limit: Schema.optional(Schema.Number),
+	total: Schema.optional(Schema.Number),
+});
 const SpacesEnvelope = Schema.Struct({
 	data: Schema.optional(Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.optional(Schema.String) }))),
+	pagination: Schema.optional(PaginationEnvelope),
+	has_more: Schema.optional(Schema.Boolean),
+	hasMore: Schema.optional(Schema.Boolean),
+	next_cursor: Schema.optional(Schema.String),
+	nextCursor: Schema.optional(Schema.String),
 });
 const SearchEnvelope = Schema.Struct({
 	data: Schema.optional(
 		Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.optional(Schema.String), type: TypeRef })),
 	),
+	pagination: Schema.optional(PaginationEnvelope),
+	has_more: Schema.optional(Schema.Boolean),
+	hasMore: Schema.optional(Schema.Boolean),
+	next_cursor: Schema.optional(Schema.String),
+	nextCursor: Schema.optional(Schema.String),
 });
 const ObjectEnvelope = Schema.Struct({
 	object: Schema.Struct({
@@ -88,6 +108,58 @@ const ObjectEnvelope = Schema.Struct({
 		snippet: Schema.optional(Schema.String),
 		markdown: Schema.optional(Schema.String),
 	}),
+});
+
+interface AnytypePageRequest {
+	readonly cursor?: string;
+	readonly offset?: number;
+	readonly limit?: number;
+}
+
+interface AnytypePageEnvelope {
+	readonly pagination?: typeof PaginationEnvelope.Type;
+	readonly has_more?: boolean;
+	readonly hasMore?: boolean;
+	readonly next_cursor?: string;
+	readonly nextCursor?: string;
+}
+
+const nextPageRequest = (
+	body: AnytypePageEnvelope,
+	receivedCount: number,
+): AnytypePageRequest | "unsupported" | null => {
+	const pagination = body.pagination;
+	const cursor = body.next_cursor ?? body.nextCursor ?? pagination?.next_cursor ?? pagination?.nextCursor;
+	if (cursor !== undefined && cursor.length > 0) return { cursor };
+
+	const hasMore = body.has_more ?? body.hasMore ?? pagination?.has_more ?? pagination?.hasMore ?? false;
+	const offset = pagination?.offset;
+	const limit = pagination?.limit;
+	const total = pagination?.total;
+	const offsetHasMore =
+		offset !== undefined &&
+		limit !== undefined &&
+		(hasMore || (total !== undefined && offset + receivedCount < total));
+	if (offsetHasMore) return { offset: offset + receivedCount, limit };
+	if (hasMore) return "unsupported";
+	return null;
+};
+
+const pagedPath = (path: string, page: AnytypePageRequest | null): string => {
+	if (page === null) return path;
+	const params = new URLSearchParams();
+	if (page.cursor !== undefined) params.set("cursor", page.cursor);
+	if (page.offset !== undefined) params.set("offset", String(page.offset));
+	if (page.limit !== undefined) params.set("limit", String(page.limit));
+	const query = params.toString();
+	return query.length > 0 ? `${path}?${query}` : path;
+};
+
+const pagedSearchBody = (query: string, page: AnytypePageRequest | null): Record<string, string | number> => ({
+	query,
+	...(page?.cursor !== undefined ? { cursor: page.cursor } : {}),
+	...(page?.offset !== undefined ? { offset: page.offset } : {}),
+	...(page?.limit !== undefined ? { limit: page.limit } : {}),
 });
 
 /**
@@ -142,23 +214,57 @@ export class AnytypeConnector extends Context.Service<
 					);
 
 			const listSpaces = Effect.fn("AnytypeConnector.listSpaces")(function* () {
-				const body = yield* sendJson(
-					"list spaces",
-					HttpClientRequest.get(url("/v1/spaces")).pipe(withAuth),
-					SpacesEnvelope,
-				);
-				return (body.data ?? []).map((space) => new AnytypeSpace(space));
+				const spaces: Array<AnytypeSpace> = [];
+				let page: AnytypePageRequest | null = null;
+				for (let pageCount = 0; pageCount < ANYTYPE_MAX_PAGES; pageCount += 1) {
+					const body = yield* sendJson(
+						"list spaces",
+						HttpClientRequest.get(url(pagedPath("/v1/spaces", page))).pipe(withAuth),
+						SpacesEnvelope,
+					);
+					const items = body.data ?? [];
+					spaces.push(...items.map((space) => new AnytypeSpace(space)));
+					const next = nextPageRequest(body, items.length);
+					if (next === null) return spaces;
+					if (next === "unsupported") {
+						return yield* Effect.fail(
+							new HarnessError({
+								message: "AnyType list spaces: paginated response did not include a cursor or offset/limit.",
+							}),
+						);
+					}
+					page = next;
+				}
+				return yield* Effect.fail(new HarnessError({ message: "AnyType list spaces: exceeded page limit." }));
 			});
 
 			const search = Effect.fn("AnytypeConnector.search")(function* (spaceId: string, query: string) {
-				const request = HttpClientRequest.post(url(`/v1/spaces/${encodeURIComponent(spaceId)}/search`)).pipe(
-					withAuth,
-					HttpClientRequest.bodyJsonUnsafe({ query }),
-				);
-				const body = yield* sendJson(`search ${spaceId}`, request, SearchEnvelope);
-				return (body.data ?? []).map(
-					(item) => new AnytypeObjectSummary({ id: item.id, name: item.name, type: item.type?.name }),
-				);
+				const results: Array<AnytypeObjectSummary> = [];
+				let page: AnytypePageRequest | null = null;
+				for (let pageCount = 0; pageCount < ANYTYPE_MAX_PAGES; pageCount += 1) {
+					const request = HttpClientRequest.post(url(`/v1/spaces/${encodeURIComponent(spaceId)}/search`)).pipe(
+						withAuth,
+						HttpClientRequest.bodyJsonUnsafe(pagedSearchBody(query, page)),
+					);
+					const body = yield* sendJson(`search ${spaceId}`, request, SearchEnvelope);
+					const items = body.data ?? [];
+					results.push(
+						...items.map(
+							(item) => new AnytypeObjectSummary({ id: item.id, name: item.name, type: item.type?.name }),
+						),
+					);
+					const next = nextPageRequest(body, items.length);
+					if (next === null) return results;
+					if (next === "unsupported") {
+						return yield* Effect.fail(
+							new HarnessError({
+								message: `AnyType search ${spaceId}: paginated response did not include a cursor or offset/limit.`,
+							}),
+						);
+					}
+					page = next;
+				}
+				return yield* Effect.fail(new HarnessError({ message: `AnyType search ${spaceId}: exceeded page limit.` }));
 			});
 
 			const getObject = Effect.fn("AnytypeConnector.getObject")(function* (spaceId: string, objectId: string) {

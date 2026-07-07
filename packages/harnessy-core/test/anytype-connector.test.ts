@@ -49,6 +49,58 @@ describe("AnytypeConnector", () => {
 		);
 	});
 
+	it.effect("follows cursor pagination for spaces", () => {
+		const fake = makeFakeHttp((request) => {
+			if (request.url.endsWith("/v1/spaces")) {
+				return { body: { data: [{ id: "space-1" }], pagination: { next_cursor: "page-2" } } };
+			}
+			return { body: { data: [{ id: "space-2" }] } };
+		});
+		return withFake(
+			fake,
+			Effect.gen(function* () {
+				const anytype = yield* AnytypeConnector;
+				const spaces = yield* anytype.listSpaces();
+				expect(spaces.map((space) => space.id)).toEqual(["space-1", "space-2"]);
+				expect(fake.calls[1]?.url).toBe("http://anytype.test/v1/spaces?cursor=page-2");
+			}),
+		);
+	});
+
+	it.effect("follows cursor pagination for search", () => {
+		const fake = makeFakeHttp((request) => {
+			const body = JSON.parse(request.body ?? "{}") as { readonly cursor?: string };
+			if (body.cursor === "page-2") {
+				return { body: { data: [{ id: "obj-2", name: "Second" }] } };
+			}
+			return { body: { data: [{ id: "obj-1", name: "First" }], pagination: { next_cursor: "page-2" } } };
+		});
+		return withFake(
+			fake,
+			Effect.gen(function* () {
+				const anytype = yield* AnytypeConnector;
+				const results = yield* anytype.search("space-1", "meeting");
+				expect(results.map((result) => result.id)).toEqual(["obj-1", "obj-2"]);
+				expect(JSON.parse(fake.calls[1]?.body ?? "{}")).toEqual({ query: "meeting", cursor: "page-2" });
+			}),
+		);
+	});
+
+	it.effect("fails rather than truncating unsupported paginated search responses", () => {
+		const fake = makeFakeHttp(() => ({
+			body: { data: [{ id: "obj-1", name: "First" }], pagination: { has_more: true } },
+		}));
+		return withFake(
+			fake,
+			Effect.gen(function* () {
+				const anytype = yield* AnytypeConnector;
+				const error = yield* Effect.flip(anytype.search("space-1", "meeting"));
+				expect(error._tag).toBe("HarnessError");
+				expect(error.message).toContain("paginated response did not include a cursor or offset/limit");
+			}),
+		);
+	});
+
 	it.effect("url-encodes space and object ids in the path", () => {
 		const fake = makeFakeHttp(() => ({ body: { object: { id: "x", name: "x" } } }));
 		return withFake(

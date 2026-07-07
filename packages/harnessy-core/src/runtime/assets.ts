@@ -287,12 +287,15 @@ export class HarnessRuntimeAssets extends Context.Service<
 			const parseSimpleYaml = (content: string): Record<string, string> => {
 				const data: Record<string, string> = {};
 				for (const line of content.split(/\r?\n/)) {
-					const trimmed = line.trim();
+					const withoutComment = line.replace(/\s+#.*$/, "");
+					if (withoutComment.trimStart() !== withoutComment) continue;
+					const trimmed = withoutComment.trim();
 					if (!trimmed || trimmed.startsWith("#")) continue;
 					const colonIndex = trimmed.indexOf(":");
 					if (colonIndex === -1) continue;
 					const key = trimmed.slice(0, colonIndex).trim();
 					let value = trimmed.slice(colonIndex + 1).trim();
+					if (value.length === 0) continue;
 					if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
 						value = value.slice(1, -1);
 					}
@@ -1054,7 +1057,6 @@ exec uv run --project "\${JARVIS_CLI_ROOT}" jarvis "$@"
 					harnessy: {
 						source: { source: "directory", path: globals.globalClaudeMarketplace },
 						installLocation: globals.globalClaudeMarketplace,
-						lastUpdated: new Date().toISOString(),
 					},
 				});
 
