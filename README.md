@@ -1,97 +1,188 @@
 # Harnessy
 
-**An agent-first, universal context & capability engine.** Harnessy standardizes
-skills, memory, configuration, and connectors so they are portable across agent
-platforms (Claude Code, Codex, OpenCode, …) instead of being locked to one tool.
-It is local-first, deterministic, and built on the [Pi](#runtime) agent runtime.
+Harnessy gives an agent a portable project context: capabilities, skills,
+memory, connectors, and checks that live with the repo instead of inside one
+agent app.
 
-The `harnessy` CLI manages capabilities for a project: it installs and verifies
-harness state, materializes capability packs, scaffolds and analyzes skills, and
-exposes portable connectors — all as typed, tested operations with
-Garden-readable JSON output.
+It ships two commands:
 
-> Direction and roadmap live in **[VISION.md](VISION.md)**.
+| Command | Purpose |
+|---------|---------|
+| `harnessy` | Deterministic setup, capability management, verification, connectors, and skill commands. |
+| `hsy` | Harnessy agent shell. It launches the Pi runtime with Harnessy identity and its own `~/.hsy/agent` config. |
 
 ## Install
 
-From this workspace:
+Current install path is from source:
 
 ```bash
-npm install
+git clone https://github.com/Flow-Research/harnessy-v2.git
+cd harnessy-v2
+
+npm install --ignore-scripts
 npm run build
-node packages/harnessy-core/dist/cli.js --help
+npm --workspace @harnessy/core link
 ```
 
-## What it does
+Verify:
 
 ```bash
-# Project setup & health
-harnessy init                       # initialize Harnessy in a project
-harnessy install                    # install harness state + first capability
-harnessy verify                     # check lockfile, context, profile, paths
-harnessy doctor                     # environment diagnostics
-
-# Capability packs
-harnessy capability add <source>    # add a capability (local / git / npm / url)
-harnessy capability materialize     # materialize or refresh pack resources
-harnessy deps check                 # inspect declared dependencies
-
-# Skills: lifecycle + decision-trace analytics
-harnessy skill create|validate|list|promote|feedback <skill>
-harnessy skill metrics compute|compare|trend <skill>      # quality metrics
-harnessy skill ratchet score|gates|snapshot|evaluate|decide|status <skill>
-harnessy skill attribute compute|backfill|index <skill>   # component attribution
-harnessy skill attribute-validate queue|review|packet|summary <skill>
-
-# Connectors & providers
-harnessy connector anytype ...      # portable connector capabilities
-harnessy ai resolve                 # provider-agnostic provider/model resolution
+harnessy --help
+hsy --help
 ```
 
-Most read commands accept `--json` for a stable, machine-readable envelope.
+`@harnessy/core` is not published to npm yet.
 
-## Packages
+## Start the Agent
 
-| Package | Description |
-|---------|-------------|
-| **[@harnessy/core](packages/harnessy-core)** | The `harnessy` CLI and capability/skill runtime |
-| **[capability-harnessy-v1-full](packages/capability-harnessy-v1-full)** | v1 compatibility pack — the complete preserved v1 source as a capability |
-| **[capability-org-knowledge](packages/capability-org-knowledge)** | Org-knowledge product pack (meeting ingest → wiki/brief → issues) |
+Launch Harnessy's agent shell:
 
-### Runtime
+```bash
+hsy
+```
 
-Harnessy builds on the **Pi** agent runtime, vendored in this monorepo:
+`hsy` opens a Harnessy-branded Pi runtime. It uses `~/.hsy/agent`, not your
+normal `~/.pi/agent` state.
 
-| Package | Description |
-|---------|-------------|
-| **[packages/agent](packages/agent)** | Agent runtime with tool calling and state management |
-| **[packages/ai](packages/ai)** | Unified multi-provider LLM API (OpenAI, Anthropic, Google, …) |
-| **[packages/coding-agent](packages/coding-agent)** | Interactive coding agent |
-| **[packages/tui](packages/tui)** | Terminal UI library with differential rendering |
+Useful first prompts:
+
+```text
+Install Harnessy in this repo and verify it.
+```
+
+```text
+Inspect this repo's Harnessy capabilities and tell me what is missing.
+```
+
+```text
+Add the local v1 compatibility capability and materialize it.
+```
+
+After installing or changing extensions, reload inside `hsy`:
+
+```text
+/reload
+```
+
+That refreshes keybindings, extensions, skills, prompts, and themes.
+
+## Quick CLI Flow
+
+Initialize a repo:
+
+```bash
+harnessy install --yes --target /path/to/project
+harnessy verify --target /path/to/project
+```
+
+Preview before writing:
+
+```bash
+harnessy install --dry-run --target /path/to/project
+```
+
+Add and materialize a capability:
+
+```bash
+harnessy capability add ./packages/capability-harnessy-v1-full --target /path/to/project
+harnessy capability materialize --target /path/to/project
+harnessy capability list --target /path/to/project
+```
+
+Check the environment:
+
+```bash
+harnessy doctor --target /path/to/project
+```
+
+## What Harnessy Manages
+
+| Area | What it means |
+|------|---------------|
+| Capabilities | Portable packs of context, skills, scripts, connector metadata, dependencies, and checks. |
+| Context | Project instructions under `.harnessy/context/`. |
+| Memory | Scoped project facts and decisions under `.harnessy/memory/`. |
+| Profiles | Load plans for context and memory files. |
+| Skills | Project-local skills under `.harnessy/skills/`. |
+| Connectors | Local-first integration capabilities, starting with AnyType. |
+| Verification | Checks for lockfiles, generated files, capability paths, and dependencies. |
+
+## Project Layout
+
+After setup:
+
+```text
+.
+├── AGENTS.md
+├── .harnessy/
+│   ├── harnessy.lock.json
+│   ├── context/AGENTS.md
+│   ├── profiles/default.json
+│   ├── memory/
+│   ├── capabilities/
+│   └── skills/
+└── scripts/harnessy/
+```
+
+## Common Commands
+
+```bash
+# Project setup
+harnessy init
+harnessy install --yes
+harnessy verify
+harnessy doctor
+
+# Capabilities
+harnessy capability add <source>
+harnessy capability list
+harnessy capability inspect <id>
+harnessy capability materialize
+harnessy deps check
+
+# Skills
+harnessy skill create <name>
+harnessy skill validate
+harnessy skill list
+harnessy skill metrics compute <name>
+
+# AnyType connector
+harnessy connector anytype spaces
+harnessy connector anytype search --space <space-id> --query "roadmap"
+harnessy connector anytype get --space <space-id> --object-id <object-id>
+```
+
+Most read commands support `--json`.
+
+## Safety
+
+Harnessy is local-first and reviewable:
+
+- use `--dry-run` before writes
+- user-global writes require `--apply-global`
+- bootstrap external commands require `--apply-bootstrap --run-external`
+- connector calls default to local/loopback endpoints
+- capability metadata is inspectable before use
+
+Use a sandbox or container for untrusted capabilities.
 
 ## Development
 
 ```bash
-npm install          # install dependencies
-npm run build        # build the runtime packages and Harnessy CLI
-npm test             # run package test suites
-npm run check        # biome + type-check + lint + repo checks
+npm install --ignore-scripts
+npm run build
+npm run check
 ```
 
-See **[CONTRIBUTING.md](CONTRIBUTING.md)** for guidelines and **[AGENTS.md](AGENTS.md)**
-for project rules (for both humans and agents). The v1 → v2 port map is in
-**[PORT_MAP.md](PORT_MAP.md)**.
+Useful files:
 
-## Security
-
-Harnessy performs external actions (global writes, command execution, clones)
-only behind explicit, gated flags (`--apply-global`, `--apply-bootstrap`,
-`--run-external`); it is plan-only by default and never builds shell strings
-from input. The underlying runtime runs with the permissions of the launching
-user — sandbox or containerize it if you need stronger boundaries (see
-[packages/coding-agent/docs/containerization.md](packages/coding-agent/docs/containerization.md)).
+| File | Purpose |
+|------|---------|
+| `PORT_MAP.md` | v1 to v2 migration map. |
+| `HARNESSY_V1_FEATURES.md` | Preserved v1 feature inventory. |
+| `HARNESSY_REMAINING_MIGRATION_POINTS.md` | Remaining migration points. |
+| `AGENTS.md` | Repo instructions for agent sessions. |
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Harnessy is built on the Pi agent runtime, which is
-MIT-licensed; the original copyright notice is retained in `LICENSE`.
+See [LICENSE](LICENSE). The vendored Pi runtime keeps its original MIT notice.
