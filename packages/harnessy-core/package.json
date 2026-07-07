@@ -5,7 +5,8 @@
 	"type": "module",
 	"license": "AGPL-3.0-or-later",
 	"bin": {
-		"harnessy": "dist/cli.js"
+		"harnessy": "dist/cli.js",
+		"hsy": "dist/hsy.js"
 	},
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -22,11 +23,12 @@
 	],
 	"scripts": {
 		"clean": "shx rm -rf dist",
-		"build": "tsgo -p tsconfig.build.json && shx chmod +x dist/cli.js",
+		"build": "tsgo -p tsconfig.build.json && shx chmod +x dist/cli.js dist/hsy.js",
 		"test": "vitest --run",
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
+		"@earendil-works/pi-coding-agent": "0.80.3",
 		"@effect/platform-node": "4.0.0-beta.85",
 		"effect": "4.0.0-beta.85"
 	},

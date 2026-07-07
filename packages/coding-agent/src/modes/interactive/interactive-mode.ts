@@ -716,7 +716,7 @@ export class InteractiveMode {
 			);
 			const onboarding = theme.fg(
 				"dim",
-				`Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.`,
+				`${APP_NAME} can explain its own features and look up its docs. Ask it how to use or extend ${APP_NAME}.`,
 			);
 			this.builtInHeader = new ExpandableText(
 				() => `${logo}\n${compactInstructions}\n${compactOnboarding}\n\n${onboarding}`,
@@ -910,7 +910,7 @@ export class InteractiveMode {
 		}
 
 		if (extendedKeysFormat === "xterm") {
-			return "tmux extended-keys-format is xterm. Pi works best with csi-u. Add `set -g extended-keys-format csi-u` to ~/.tmux.conf and restart tmux.";
+			return `tmux extended-keys-format is xterm. ${APP_NAME} works best with csi-u. Add \`set -g extended-keys-format csi-u\` to ~/.tmux.conf and restart tmux.`;
 		}
 
 		return undefined;
@@ -3327,7 +3327,7 @@ export class InteractiveMode {
 			new Text(
 				theme.fg(
 					"warning",
-					`This project is not trusted. Project ${CONFIG_DIR_NAME} resources and packages are ignored. Use /trust to save a trust decision, then restart pi.`,
+					`This project is not trusted. Project ${CONFIG_DIR_NAME} resources and packages are ignored. Use /trust to save a trust decision, then restart ${APP_NAME}.`,
 				),
 				1,
 				0,
@@ -3455,7 +3455,7 @@ export class InteractiveMode {
 		try {
 			this.ui.stop();
 		} catch {}
-		console.error("pi exiting due to uncaughtException:");
+		console.error(`${APP_NAME} exiting due to uncaughtException:`);
 		console.error(error);
 		process.exit(1);
 	}
@@ -4292,7 +4292,7 @@ export class InteractiveMode {
 					trustStore.setMany(selection.updates);
 					done();
 					this.showStatus(
-						`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`,
+						`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart ${APP_NAME} for this to take effect.`,
 					);
 				},
 				onCancel: () => {

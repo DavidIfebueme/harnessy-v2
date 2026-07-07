@@ -1,10 +1,11 @@
 // Core session management
 
 export { type Args, parseArgs } from "./cli/args.ts";
-
 // Config paths
 export {
+	type AppIdentityConfig,
 	CONFIG_DIR_NAME,
+	configureAppIdentity,
 	getAgentDir,
 	getDocsPath,
 	getExamplesPath,
@@ -320,6 +321,7 @@ export {
 	type ProjectTrustStoreEntry,
 	type ProjectTrustUpdate,
 } from "./core/trust-manager.ts";
+export { type PiCliEntrypointOptions, runPiCli } from "./entry.ts";
 // Main entry point
 export { type MainOptions, main } from "./main.ts";
 // Run modes for programmatic SDK usage
