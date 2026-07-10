@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-import { homedir } from "node:os";
-import { join } from "node:path";
 import process from "node:process";
 import { runPiCli } from "@earendil-works/pi-coding-agent";
+import {
+	configureHsyRuntimeEnv,
+	HSY_APP_DESCRIPTION,
+	HSY_APP_NAME,
+	HSY_APP_TITLE,
+	HSY_CONFIG_DIR,
+} from "./hsy-runtime-env.ts";
 import { harnessyWelcomeExtension } from "./hsy-welcome-extension.ts";
 
 const PACKAGE_COMMANDS = new Set(["config", "install", "list", "remove", "uninstall", "update"]);
@@ -20,17 +25,14 @@ function normalizeHsyArgs(args: string[]): string[] {
 	return ["--help"];
 }
 
-const harnessyAgentDir = process.env.HSY_CODING_AGENT_DIR?.trim() || join(homedir(), ".hsy", "agent");
-process.env.HSY_CODING_AGENT_DIR = harnessyAgentDir;
-// Pi ecosystem packages use this legacy variable to locate their host agent directory.
-process.env.PI_CODING_AGENT_DIR = harnessyAgentDir;
+configureHsyRuntimeEnv();
 
 void runPiCli(normalizeHsyArgs(process.argv.slice(2)), {
 	appIdentity: {
-		name: "hsy",
-		title: "Harnessy",
-		description: "Harnessy agent-first context engine",
-		configDir: ".hsy",
+		name: HSY_APP_NAME,
+		title: HSY_APP_TITLE,
+		description: HSY_APP_DESCRIPTION,
+		configDir: HSY_CONFIG_DIR,
 	},
 	extensionFactories: [{ name: "harnessy-welcome", factory: harnessyWelcomeExtension }],
 });
