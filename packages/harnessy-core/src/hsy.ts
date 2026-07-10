@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { homedir } from "node:os";
+import { join } from "node:path";
 import process from "node:process";
 import { runPiCli } from "@earendil-works/pi-coding-agent";
 import { harnessyWelcomeExtension } from "./hsy-welcome-extension.ts";
@@ -17,6 +19,11 @@ function normalizeHsyArgs(args: string[]): string[] {
 	if (COMMANDS_WITH_HELP.has(second)) return [second, "--help", ...rest];
 	return ["--help"];
 }
+
+const harnessyAgentDir = process.env.HSY_CODING_AGENT_DIR?.trim() || join(homedir(), ".hsy", "agent");
+process.env.HSY_CODING_AGENT_DIR = harnessyAgentDir;
+// Pi ecosystem packages use this legacy variable to locate their host agent directory.
+process.env.PI_CODING_AGENT_DIR = harnessyAgentDir;
 
 void runPiCli(normalizeHsyArgs(process.argv.slice(2)), {
 	appIdentity: {
