@@ -1256,9 +1256,81 @@ def docs(as_json: bool) -> None:
         click.echo(_format_docs_markdown(documentation))
 
 
+def _normalize_docs_default(value: object) -> object:
+    """Convert Click defaults into deterministic JSON values."""
+    if type(value).__module__ == "click._utils" and type(value).__name__ == "Sentinel":
+        return {"kind": "unset"}
+    if callable(value):
+        return {"kind": "dynamic"}
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_normalize_docs_default(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _normalize_docs_default(item) for key, item in sorted(value.items())}
+    return str(value)
+
+
+def _generate_command_tree(command: click.Command, path: list[str]) -> list[dict[str, object]]:
+    """Generate the complete live Click tree used as machine-readable documentation."""
+    entry: dict[str, object] = {
+        "path": path,
+        "kind": "group" if isinstance(command, click.Group) else "command",
+        "description": command.help or command.short_help or "",
+        "arguments": [
+            {
+                "name": parameter.name or "",
+                "type": getattr(parameter.type, "name", type(parameter.type).__name__),
+                "required": parameter.required,
+                "nargs": parameter.nargs,
+                "default": _normalize_docs_default(parameter.default),
+                **(
+                    {
+                        "choices": [
+                            _normalize_docs_default(choice)
+                            for choice in parameter.type.choices
+                        ]
+                    }
+                    if isinstance(parameter.type, click.Choice)
+                    else {}
+                ),
+            }
+            for parameter in command.params
+            if isinstance(parameter, click.Argument)
+        ],
+        "options": [
+            {
+                "names": [*parameter.opts, *parameter.secondary_opts],
+                "type": getattr(parameter.type, "name", type(parameter.type).__name__),
+                "required": parameter.required,
+                "multiple": parameter.multiple,
+                "count": parameter.count,
+                "default": _normalize_docs_default(parameter.default),
+                **(
+                    {
+                        "choices": [
+                            _normalize_docs_default(choice)
+                            for choice in parameter.type.choices
+                        ]
+                    }
+                    if isinstance(parameter.type, click.Choice)
+                    else {}
+                ),
+            }
+            for parameter in command.params
+            if isinstance(parameter, click.Option)
+        ],
+    }
+    entries = [entry]
+    if isinstance(command, click.Group):
+        for child_name, child in sorted(command.commands.items()):
+            entries.extend(_generate_command_tree(child, [*path, child_name]))
+    return entries
+
+
 def _generate_docs() -> dict:
-    """Generate comprehensive documentation dictionary."""
-    return {
+    """Generate documentation from manual examples and live Click metadata."""
+    documentation = {
         "name": "jarvis",
         "version": "0.1.0",
         "description": "AI-powered personal assistant for AnyType",
@@ -2419,6 +2491,8 @@ def _generate_docs() -> dict:
             "AnyType desktop app running on localhost:31009",
         ],
     }
+    documentation["command_tree"] = _generate_command_tree(cli, ["jarvis"])
+    return documentation
 
 
 def _format_docs_markdown(docs: dict) -> str:

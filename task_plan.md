@@ -138,10 +138,10 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 - [x] Open and link the deferred GitHub issue for mutation authorization, approvals, scoped grants, idempotency, and auditing: [#48](https://github.com/Flow-Research/harnessy-v2/issues/48).
 - [x] Add a deterministic Python command-tree exporter based on the live Click tree.
 - [x] Commit a canonical command manifest covering aliases, arguments, options, defaults, and help.
-- [ ] Fix `jarvis docs --json`; it currently omits implemented command groups.
-- [ ] Inventory and fixture every persisted JSON/YAML/Markdown format.
+- [x] Fix `jarvis docs --json`; it currently omits implemented command groups.
+- [x] Inventory and fixture every persisted JSON/YAML/Markdown format.
 - [x] Capture adapter capability matrices and typed failure behavior.
-- [ ] Select representative Python tests as cross-runtime golden fixtures.
+- [x] Select representative Python tests as cross-runtime golden fixtures.
 - [x] Add a parity dashboard that reports `missing`, `partial`, `compatible`, or `intentionally retired` by feature and records the approved replacement/rationale for every retirement.
 
 **Exit gate:** the migration can detect a removed command, changed default, state incompatibility, or error-contract regression without manual review.
