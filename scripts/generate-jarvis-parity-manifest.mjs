@@ -75,7 +75,6 @@ const commandEntries = commandManifest.commands.map((command) => {
 });
 
 const stateEntries = stateManifest.stores.map((store) => {
-	const status = ["project-context-v1", "legacy-config-yaml-v1"].includes(store.id) ? "compatible" : "missing";
 	const compatibility =
 		store.id === "project-context-v1"
 			? { replacement: "JarvisContextLoader", rationale: "The native loader reproduces the twelve-file legacy merge contract." }
@@ -84,12 +83,15 @@ const stateEntries = stateManifest.stores.map((store) => {
 						replacement: "JarvisConfigReader",
 						rationale: "Effect schemas reproduce legacy YAML, environment, account, and credential-source resolution.",
 					}
-				: {};
+				: {
+						replacement: "JarvisStateReader",
+						rationale: "The bounded native reader reports versioned readiness without mutating legacy state.",
+					};
 	return {
 		id: `state:${store.id}`,
 		surface: "state",
 		legacyReference: store.id,
-		status,
+		status: "compatible",
 		...compatibility,
 	};
 });

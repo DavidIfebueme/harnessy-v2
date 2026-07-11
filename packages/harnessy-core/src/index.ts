@@ -133,6 +133,17 @@ export {
 } from "./jarvis/parity.ts";
 export { JarvisParityReport, JarvisParityReporter } from "./jarvis/parity-report.ts";
 export { JarvisPathResolver, JarvisPaths, JarvisRuntimeRoots } from "./jarvis/paths.ts";
+export {
+	JarvisStateIssue,
+	JarvisStateIssueCode,
+	JarvisStateOverallReadiness,
+	JarvisStateReader,
+	JarvisStateReadiness,
+	JarvisStateReadinessCounts,
+	JarvisStateReadLimits,
+	JarvisStateStoreResult,
+	JarvisStateStoreStatus,
+} from "./jarvis/state.ts";
 export type {
 	DoctorResult,
 	InitResult,

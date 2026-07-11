@@ -1022,31 +1022,41 @@
       "id": "state:fathom-inbox-json-v1",
       "surface": "state",
       "legacyReference": "fathom-inbox-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:fathom-poll-state-json-v1",
       "surface": "state",
       "legacyReference": "fathom-poll-state-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:journal-deep-dives-json-v1",
       "surface": "state",
       "legacyReference": "journal-deep-dives-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:journal-draft-text-v1",
       "surface": "state",
       "legacyReference": "journal-draft-text-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:journal-index-json-v1",
       "surface": "state",
       "legacyReference": "journal-index-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:legacy-config-yaml-v1",
@@ -1060,13 +1070,17 @@
       "id": "state:pending-suggestions-json-v1",
       "surface": "state",
       "legacyReference": "pending-suggestions-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:plan-apply-json-v1",
       "surface": "state",
       "legacyReference": "plan-apply-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:project-context-v1",
@@ -1080,67 +1094,89 @@
       "id": "state:reading-list-result-cache-v1",
       "surface": "state",
       "legacyReference": "reading-list-result-cache-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:reading-list-url-cache-v1",
       "surface": "state",
       "legacyReference": "reading-list-url-cache-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:schedule-plan-json-v1",
       "surface": "state",
       "legacyReference": "schedule-plan-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:selected-space-json-v1",
       "surface": "state",
       "legacyReference": "selected-space-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:sync-presets-yaml-v1",
       "surface": "state",
       "legacyReference": "sync-presets-yaml-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:sync-state-json-v1",
       "surface": "state",
       "legacyReference": "sync-state-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:weekly-plan-markdown-v1",
       "surface": "state",
       "legacyReference": "weekly-plan-markdown-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:whatsapp-inbox-json-v1",
       "surface": "state",
       "legacyReference": "whatsapp-inbox-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:whatsapp-thread-json-v1",
       "surface": "state",
       "legacyReference": "whatsapp-thread-json-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:whatsapp-thread-markdown-v1",
       "surface": "state",
       "legacyReference": "whatsapp-thread-markdown-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "state:wiki-domain-v1",
       "surface": "state",
       "legacyReference": "wiki-domain-v1",
-      "status": "missing"
+      "status": "compatible",
+      "replacement": "JarvisStateReader",
+      "rationale": "The bounded native reader reports versioned readiness without mutating legacy state."
     },
     {
       "id": "workflow:journal-notes",

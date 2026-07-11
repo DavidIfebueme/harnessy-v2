@@ -69,7 +69,7 @@ const LegacyEmptyArrayConfig = Schema.Tuple([]).pipe(
 		SchemaTransformation.transform({ decode: () => ({}), encode: () => [] as const }),
 	),
 );
-const LegacyJarvisConfigInput = Schema.Union([
+export const JarvisLegacyConfigInput = Schema.Union([
 	JarvisLegacyConfig,
 	LegacyNullConfig,
 	LegacyFalseConfig,
@@ -129,7 +129,7 @@ export class JarvisConfigReader extends Context.Service<
 					}),
 				);
 				if (!value.ok) return invalidInspection(configPath, ["Could not decode legacy Jarvis YAML configuration."]);
-				return yield* Schema.decodeUnknownEffect(LegacyJarvisConfigInput)(value.decoded).pipe(
+				return yield* Schema.decodeUnknownEffect(JarvisLegacyConfigInput)(value.decoded).pipe(
 					Effect.match({
 						onFailure: () =>
 							invalidInspection(configPath, ["Legacy Jarvis configuration failed schema validation."]),
@@ -185,7 +185,7 @@ export class JarvisConfigReader extends Context.Service<
 						catch: (cause) =>
 							new HarnessError({ message: `Could not decode legacy Jarvis configuration ${configPath}`, cause }),
 					});
-					fileConfig = yield* Schema.decodeUnknownEffect(LegacyJarvisConfigInput)(decoded).pipe(
+					fileConfig = yield* Schema.decodeUnknownEffect(JarvisLegacyConfigInput)(decoded).pipe(
 						Effect.mapError(
 							(cause) =>
 								new HarnessError({

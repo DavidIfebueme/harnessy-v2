@@ -148,13 +148,13 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 
 ## Phase 1 — Effect compatibility kernel
 
-- [ ] Create `packages/harnessy-core/src/jarvis/` with domain, config, storage, compatibility, and extension boundaries.
+- [x] Create `packages/harnessy-core/src/jarvis/` with domain, config, storage, compatibility, and extension boundaries.
 - [ ] Port Pydantic domain models to `Schema.Class` without duplicate legacy model families.
 - [ ] Port backend exceptions to specific `Schema.TaggedErrorClass` types rather than one generic error.
-- [ ] Implement Jarvis path resolution as an injected service; no module-load `homedir()` constants.
+- [x] Implement Jarvis path resolution as an injected service; no module-load `homedir()` constants.
 - [x] Decode `~/.jarvis/config.yaml` plus `JARVIS_*` environment overrides.
-- [ ] Port global/folder context loading, 12 standard files, override semantics, and `{{global}}` expansion.
-- [ ] Implement versioned readers/writers for config, pending suggestions, plans, journal state, sync state, presets, caches, wiki state, and channel inboxes.
+- [x] Port global/folder context loading, 12 standard files, override semantics, and `{{global}}` expansion.
+- [x] Implement bounded versioned readers for config, pending suggestions, plans, journal state, sync state, presets, caches, wiki state, and channel inboxes; writers remain deferred behind #48.
 - [ ] Add corruption-safe parsing, atomic writes, file locking where concurrent webhook/agent access is possible, and migration backups.
 
 **Exit gate:** Effect reads existing Jarvis configuration/context/state fixtures without modifying them and reproduces Python decode/merge results.

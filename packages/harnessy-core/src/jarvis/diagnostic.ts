@@ -8,6 +8,7 @@ import { JarvisConfigInspection, JarvisConfigReader } from "./config.ts";
 import { JarvisContextDocumentSummary, JarvisContextLoader } from "./context.ts";
 import { JarvisCredentialPresence, JarvisCredentialResolver } from "./credentials.ts";
 import { JarvisPathResolver, JarvisPaths } from "./paths.ts";
+import { JarvisStateReader, JarvisStateReadiness } from "./state.ts";
 
 export const JarvisMigrationStatus = Schema.Literals(["empty", "legacy", "canonical", "mixed"]);
 export type JarvisMigrationStatus = typeof JarvisMigrationStatus.Type;
@@ -18,6 +19,7 @@ export class JarvisDiagnosticResult extends Schema.Class<JarvisDiagnosticResult>
 	paths: JarvisPaths,
 	config: JarvisConfigInspection,
 	credentials: Schema.Array(JarvisCredentialPresence),
+	state: JarvisStateReadiness,
 	context: Schema.Array(JarvisContextDocumentSummary),
 	legacyDetected: Schema.Boolean,
 	canonicalDetected: Schema.Boolean,
@@ -38,6 +40,7 @@ export class JarvisDiagnostic extends Context.Service<
 			const paths = yield* JarvisPathResolver;
 			const config = yield* JarvisConfigReader;
 			const credentials = yield* JarvisCredentialResolver;
+			const state = yield* JarvisStateReader;
 			const context = yield* JarvisContextLoader;
 
 			const pathExists = (path: string) =>
@@ -76,6 +79,7 @@ export class JarvisDiagnostic extends Context.Service<
 						: yield* config
 								.loadResolved(resolved)
 								.pipe(Effect.flatMap((loaded) => credentials.inspectPresence(loaded, resolved)));
+				const stateReadiness = yield* state.inspect(resolved);
 				const contextResult = yield* context.loadLegacy(resolved);
 
 				return new JarvisDiagnosticResult({
@@ -83,6 +87,7 @@ export class JarvisDiagnostic extends Context.Service<
 					paths: resolved,
 					config: configInspection,
 					credentials: credentialPresence,
+					state: stateReadiness,
 					context: contextResult.summaries,
 					legacyDetected,
 					canonicalDetected,
@@ -100,6 +105,7 @@ export class JarvisDiagnostic extends Context.Service<
 				JarvisPathResolver.layer,
 				JarvisConfigReader.liveLayer,
 				JarvisCredentialResolver.liveLayer,
+				JarvisStateReader.liveLayer,
 				JarvisContextLoader.layer,
 			),
 		),
