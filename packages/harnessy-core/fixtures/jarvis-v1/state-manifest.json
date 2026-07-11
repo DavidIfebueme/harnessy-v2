@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "stores": [
+    {
+      "id": "legacy-config-yaml-v1",
+      "pathTemplate": "~/.jarvis/config.yaml",
+      "format": "yaml",
+      "missingBehavior": "defaults",
+      "malformedBehavior": "error",
+      "source": "src/jarvis/config/schema.py"
+    },
+    {
+      "id": "selected-space-json-v1",
+      "pathTemplate": "~/.jarvis/config.json",
+      "format": "json",
+      "missingBehavior": "empty",
+      "malformedBehavior": "empty",
+      "fixture": "state/selected-space.valid.json",
+      "source": "src/jarvis/state.py"
+    },
+    {
+      "id": "pending-suggestions-json-v1",
+      "pathTemplate": "~/.jarvis/pending.json",
+      "format": "json",
+      "missingBehavior": "empty",
+      "malformedBehavior": "empty",
+      "fixture": "state/pending.valid.json",
+      "malformedFixture": "state/pending.malformed.json",
+      "source": "src/jarvis/state.py"
+    },
+    {
+      "id": "journal-index-json-v1",
+      "pathTemplate": "~/.jarvis/journal/entries.json",
+      "format": "json",
+      "missingBehavior": "empty",
+      "malformedBehavior": "empty",
+      "source": "src/jarvis/journal/state.py"
+    },
+    {
+      "id": "journal-deep-dives-json-v1",
+      "pathTemplate": "~/.jarvis/journal/deep_dives/<entry-id>.json",
+      "format": "json",
+      "missingBehavior": "empty",
+      "malformedBehavior": "empty",
+      "source": "src/jarvis/journal/state.py"
+    },
+    {
+      "id": "journal-draft-text-v1",
+      "pathTemplate": "~/.jarvis/journal/drafts/<timestamp>.txt",
+      "format": "text",
+      "missingBehavior": "empty",
+      "malformedBehavior": "not-applicable",
+      "source": "src/jarvis/journal/state.py"
+    },
+    {
+      "id": "saved-plan-json-v1",
+      "pathTemplate": "~/.jarvis/plans/<date>-plan.json",
+      "format": "json",
+      "missingBehavior": "none",
+      "malformedBehavior": "error",
+      "source": "src/jarvis/plans/state.py"
+    },
+    {
+      "id": "sync-presets-yaml-v1",
+      "pathTemplate": "~/.jarvis/sync/presets.yaml",
+      "format": "yaml",
+      "missingBehavior": "empty",
+      "malformedBehavior": "error",
+      "source": "src/jarvis/sync/presets.py"
+    },
+    {
+      "id": "sync-state-json-v1",
+      "pathTemplate": "~/.jarvis/sync/state/<preset>.json",
+      "format": "json",
+      "missingBehavior": "none",
+      "malformedBehavior": "error",
+      "fixture": "state/sync.valid.json",
+      "source": "src/jarvis/sync/state.py"
+    },
+    {
+      "id": "fathom-poll-state-json-v1",
+      "pathTemplate": "~/.jarvis/state/fathom/poll-state.json",
+      "format": "json",
+      "missingBehavior": "empty",
+      "malformedBehavior": "error",
+      "source": "src/jarvis/meetings/poll_state.py"
+    },
+    {
+      "id": "reading-list-cache-v1",
+      "pathTemplate": "~/.jarvis/cache/reading-list/",
+      "format": "json-directory",
+      "missingBehavior": "empty",
+      "malformedBehavior": "skip-entry",
+      "source": "src/jarvis/reading_list/cache.py"
+    },
+    {
+      "id": "wiki-domain-v1",
+      "pathTemplate": "~/.jarvis/wikis/<domain>/",
+      "format": "yaml-markdown-json-directory",
+      "missingBehavior": "none",
+      "malformedBehavior": "error",
+      "source": "src/jarvis/wiki/"
+    },
+    {
+      "id": "project-context-v1",
+      "pathTemplate": "<project>/.jarvis/context/",
+      "format": "markdown-directory",
+      "missingBehavior": "global-fallback",
+      "malformedBehavior": "not-applicable",
+      "source": "src/jarvis/context_reader.py"
+    },
+    {
+      "id": "channel-inboxes-v1",
+      "pathTemplate": "<project>/.jarvis/context/private/<user>/{meeting-inbox,whatsapp}/",
+      "format": "json-markdown-directory",
+      "missingBehavior": "empty",
+      "malformedBehavior": "quarantine-or-skip",
+      "source": "src/jarvis/{meetings,whatsapp}/"
+    }
+  ]
+}

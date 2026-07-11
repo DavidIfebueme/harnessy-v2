@@ -1,0 +1,301 @@
+import { createHash } from "node:crypto";
+import { globSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { NodeServices } from "@effect/platform-node";
+import { describe, expect, it } from "@effect/vitest";
+import { FileSystem, Path } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import { TestConsole } from "effect/testing";
+import { Command } from "effect/unstable/cli";
+
+import { rootCommand } from "../src/commands.ts";
+import { HARNESSY_VERSION } from "../src/constants.ts";
+import { JarvisContextLoader } from "../src/jarvis/context.ts";
+import { JarvisDiagnostic } from "../src/jarvis/diagnostic.ts";
+import {
+	parseJarvisCommandManifest,
+	parseJarvisParityManifest,
+	parseJarvisStateManifest,
+} from "../src/jarvis/parity.ts";
+import { JarvisPathResolver, JarvisRuntimeRoots } from "../src/jarvis/paths.ts";
+import { HarnessProject } from "../src/operations.ts";
+
+const contextLayer = Layer.mergeAll(JarvisPathResolver.layer, JarvisContextLoader.layer);
+
+describe("Jarvis compatibility kernel", () => {
+	it.effect("loads the frozen Python command and state inventories", () =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const commandManifest = yield* parseJarvisCommandManifest(
+				yield* fs.readFileString("fixtures/jarvis-v1/command-manifest.json"),
+				"command-manifest.json",
+			);
+			const stateManifest = yield* parseJarvisStateManifest(
+				yield* fs.readFileString("fixtures/jarvis-v1/state-manifest.json"),
+				"state-manifest.json",
+			);
+			const paths = commandManifest.commands.map((entry) => entry.path.join(" "));
+
+			expect(commandManifest.commands).toHaveLength(131);
+			expect(JSON.stringify(commandManifest)).not.toContain("Sentinel.UNSET");
+			expect(commandManifest.source.pythonSourceSha256).toMatch(/^[a-f0-9]{64}$/);
+			const sourceRoot = resolve("../capability-harnessy-v1-full/resources/jarvis-cli/src");
+			const sourceDigest = createHash("sha256");
+			for (const relativePath of globSync("**/*.py", { cwd: sourceRoot }).sort()) {
+				sourceDigest.update(relativePath);
+				sourceDigest.update("\0");
+				sourceDigest.update(readFileSync(resolve(sourceRoot, relativePath)));
+				sourceDigest.update("\0");
+			}
+			expect(commandManifest.source.pythonSourceSha256).toBe(sourceDigest.digest("hex"));
+			expect(new Set(paths).size).toBe(paths.length);
+			expect(paths).toEqual([...paths].sort());
+			expect(paths).toContain("jarvis wiki research");
+			expect(paths).toContain("jarvis whatsapp send-template");
+			expect(paths).toContain("jarvis sync run");
+			expect(stateManifest.stores.map((store) => store.id)).toContain("pending-suggestions-json-v1");
+			expect(stateManifest.stores.map((store) => store.id)).toContain("sync-state-json-v1");
+
+			for (const store of stateManifest.stores) {
+				if (store.fixture !== undefined) {
+					expect(yield* fs.exists(`fixtures/jarvis-v1/${store.fixture}`)).toBe(true);
+					JSON.parse(yield* fs.readFileString(`fixtures/jarvis-v1/${store.fixture}`));
+				}
+				if (store.malformedFixture !== undefined) {
+					const malformed = yield* fs.readFileString(`fixtures/jarvis-v1/${store.malformedFixture}`);
+					expect(() => JSON.parse(malformed)).toThrow();
+				}
+			}
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("resolves canonical and legacy stores without creating them", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				yield* fs.makeDirectory(home, { recursive: true });
+				yield* fs.makeDirectory(target, { recursive: true });
+
+				const result = yield* Effect.gen(function* () {
+					const diagnostic = yield* JarvisDiagnostic;
+					return yield* diagnostic.inspect(target);
+				}).pipe(Effect.provide(JarvisDiagnostic.liveLayer), Effect.provide(JarvisRuntimeRoots.testLayer(home)));
+
+				expect(result.migrationStatus).toBe("empty");
+				expect(result.paths.canonicalGlobalRoot).toBe(path.join(home, ".harnessy", "jarvis"));
+				expect(result.paths.legacyGlobalRoot).toBe(path.join(home, ".jarvis"));
+				expect(result.config.status).toBe("missing");
+				expect(yield* fs.exists(result.paths.canonicalGlobalRoot)).toBe(false);
+				expect(yield* fs.exists(result.paths.legacyGlobalRoot)).toBe(false);
+			}),
+		).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("loads the twelve-file legacy context with project override and global expansion", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				const globalContext = path.join(home, ".jarvis", "context");
+				const projectContext = path.join(target, ".jarvis", "context");
+				yield* fs.makeDirectory(globalContext, { recursive: true });
+				yield* fs.makeDirectory(projectContext, { recursive: true });
+				yield* fs.writeFileString(path.join(globalContext, "preferences.md"), "global preference");
+				yield* fs.writeFileString(path.join(projectContext, "preferences.md"), "project preference");
+				yield* fs.writeFileString(path.join(globalContext, "goals.md"), "global goal");
+				yield* fs.writeFileString(path.join(projectContext, "goals.md"), "{{global}}\nproject goal");
+
+				const loaded = yield* Effect.gen(function* () {
+					const resolver = yield* JarvisPathResolver;
+					const loader = yield* JarvisContextLoader;
+					return yield* loader.loadLegacy(yield* resolver.resolve(target));
+				}).pipe(Effect.provide(contextLayer), Effect.provide(JarvisRuntimeRoots.testLayer(home)));
+
+				expect(loaded.documents).toHaveLength(12);
+				expect(loaded.documents.find((entry) => entry.name === "preferences.md")).toMatchObject({
+					source: "project",
+					content: "project preference",
+				});
+				expect(loaded.documents.find((entry) => entry.name === "goals.md")).toMatchObject({
+					source: "merged",
+					content: "global goal\nproject goal",
+				});
+			}),
+		).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("preserves legacy YAML defaults and rejects invalid nested shapes", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				const configPath = path.join(home, ".jarvis", "config.yaml");
+				yield* fs.makeDirectory(path.dirname(configPath), { recursive: true });
+				yield* fs.makeDirectory(target, { recursive: true });
+
+				const inspect = (raw: string) =>
+					fs.writeFileString(configPath, raw).pipe(
+						Effect.andThen(
+							Effect.gen(function* () {
+								const diagnostic = yield* JarvisDiagnostic;
+								return yield* diagnostic.inspect(target);
+							}),
+						),
+						Effect.provide(JarvisDiagnostic.liveLayer),
+						Effect.provide(JarvisRuntimeRoots.testLayer(home)),
+					);
+
+				for (const raw of ["", "# comment only\n", "[]\n"]) {
+					const result = yield* inspect(raw);
+					expect(result.config).toMatchObject({
+						status: "valid",
+						version: 1,
+						activeBackend: "anytype",
+						configuredBackends: ["anytype"],
+					});
+				}
+
+				for (const { raw, version } of [
+					{ raw: 'version: "1"\nanalytics:\n  enabled: "false"\n', version: 1 },
+					{ raw: 'version: " 1 "\nanalytics:\n  enabled: "TrUe"\n', version: 1 },
+					{ raw: 'version: "1.0"\nanalytics:\n  enabled: 0\n', version: 1 },
+					{ raw: 'version: "1_000"\nanalytics:\n  enabled: 1\n', version: 1000 },
+					{ raw: "version: true\nanalytics:\n  enabled: yes\n", version: 1 },
+					{ raw: "version: false\nanalytics:\n  enabled: no\n", version: 0 },
+				]) {
+					const result = yield* inspect(raw);
+					expect(result.config.status).toBe("valid");
+					expect(result.config.version).toBe(version);
+				}
+
+				for (const raw of [
+					"version: 1.5\n",
+					'version: ""\n',
+					'version: "1e3"\n',
+					"active_backend: unknown\n",
+					"backends:\n  anytype: invalid\n",
+					"backends:\n  notion:\n    workspace_id: only-one-field\n",
+					"analytics:\n  enabled: 2\n",
+					'analytics:\n  enabled: " yes "\n',
+					'analytics:\n  enabled: "not-a-bool"\n',
+					"- non-empty\n- root-list\n",
+				]) {
+					const result = yield* inspect(raw);
+					expect(result.config.status).toBe("invalid");
+					expect(result.config.issues).toEqual(["Legacy Jarvis configuration failed schema validation."]);
+				}
+			}),
+		).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.live("reports redacted config metadata through the read-only CLI", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				yield* fs.makeDirectory(path.join(home, ".jarvis"), { recursive: true });
+				yield* fs.makeDirectory(target, { recursive: true });
+				yield* fs.writeFileString(
+					path.join(home, ".jarvis", "config.yaml"),
+					[
+						"version: 1",
+						"active_backend: notion",
+						"backends:",
+						"  anytype: {}",
+						"  notion:",
+						"    workspace_id: workspace-1",
+						"    task_database_id: tasks-1",
+						"    journal_database_id: journal-1",
+						"    token: should-not-appear",
+					].join("\n"),
+				);
+
+				const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+				yield* run(["jarvis", "diagnose", "--json", "--target", target]).pipe(
+					Effect.provide(HarnessProject.layer),
+					Effect.provide(JarvisDiagnostic.liveLayer),
+					Effect.provide(JarvisRuntimeRoots.testLayer(home)),
+				);
+				const logs = yield* TestConsole.logLines;
+				const jsonLog = logs.find(
+					(logged): logged is string =>
+						typeof logged === "string" && logged.includes('"command": "jarvis diagnose"'),
+				);
+				if (jsonLog === undefined) throw new Error("jarvis diagnose --json did not emit structured output");
+				const output = JSON.parse(jsonLog) as {
+					readonly command: string;
+					readonly config: { readonly status: string; readonly activeBackend: string };
+				};
+				expect(output.command).toBe("jarvis diagnose");
+				expect(output.config).toMatchObject({ status: "valid", activeBackend: "notion" });
+				expect(jsonLog).not.toContain("should-not-appear");
+			}),
+		).pipe(Effect.provide(NodeServices.layer), Effect.provide(TestConsole.layer)),
+	);
+
+	it.live("never exposes malformed YAML source lines in JSON or text diagnostics", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				yield* fs.makeDirectory(path.join(home, ".jarvis"), { recursive: true });
+				yield* fs.makeDirectory(target, { recursive: true });
+				yield* fs.writeFileString(path.join(home, ".jarvis", "config.yaml"), "token: should-not-appear: broken\n");
+
+				const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+				const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+					effect.pipe(
+						Effect.provide(HarnessProject.layer),
+						Effect.provide(JarvisDiagnostic.liveLayer),
+						Effect.provide(JarvisRuntimeRoots.testLayer(home)),
+					);
+				yield* provide(run(["jarvis", "diagnose", "--json", "--target", target]));
+				yield* provide(run(["jarvis", "diagnose", "--target", target]));
+
+				const output = (yield* TestConsole.logLines).join("\n");
+				expect(output).toContain("Invalid YAML syntax in legacy Jarvis configuration.");
+				expect(output).not.toContain("should-not-appear");
+			}),
+		).pipe(Effect.provide(NodeServices.layer), Effect.provide(TestConsole.layer)),
+	);
+
+	it.effect("validates the parity manifest contract", () =>
+		Effect.gen(function* () {
+			const manifest = yield* parseJarvisParityManifest(
+				JSON.stringify({
+					schemaVersion: 1,
+					sourceVersion: "0.1.0",
+					entries: [
+						{
+							id: "command:jarvis-status",
+							surface: "command",
+							legacyReference: "jarvis status",
+							status: "missing",
+						},
+					],
+				}),
+				"fixture.json",
+			);
+			expect(manifest.entries).toHaveLength(1);
+			expect(manifest.entries[0]?.status).toBe("missing");
+		}),
+	);
+});

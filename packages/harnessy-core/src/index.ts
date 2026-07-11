@@ -63,6 +63,35 @@ export {
 } from "./capabilities/source.ts";
 export { HARNESSY_VERSION } from "./constants.ts";
 export { HarnessError } from "./errors.ts";
+export { JarvisConfigInspection, JarvisConfigReader, JarvisConfigStatus } from "./jarvis/config.ts";
+export {
+	JARVIS_CONTEXT_FILES,
+	JarvisContextDocument,
+	JarvisContextDocumentSummary,
+	JarvisContextLoader,
+	JarvisContextLoadResult,
+	JarvisContextSource,
+} from "./jarvis/context.ts";
+export { JarvisDiagnostic, JarvisDiagnosticResult, JarvisMigrationStatus } from "./jarvis/diagnostic.ts";
+export {
+	JarvisCommandArgument,
+	JarvisCommandEntry,
+	JarvisCommandManifest,
+	JarvisCommandOption,
+	JarvisMalformedBehavior,
+	JarvisMissingBehavior,
+	JarvisParityEntry,
+	JarvisParityManifest,
+	JarvisParityStatus,
+	JarvisProtocolSurface,
+	JarvisStateFormat,
+	JarvisStateManifest,
+	JarvisStateStoreManifest,
+	parseJarvisCommandManifest,
+	parseJarvisParityManifest,
+	parseJarvisStateManifest,
+} from "./jarvis/parity.ts";
+export { JarvisPathResolver, JarvisPaths, JarvisRuntimeRoots } from "./jarvis/paths.ts";
 export type {
 	DoctorResult,
 	InitResult,

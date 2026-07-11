@@ -5,6 +5,8 @@ import { Command } from "effect/unstable/cli";
 
 import { rootCommand } from "./commands.ts";
 import { HARNESSY_VERSION } from "./constants.ts";
+import { JarvisDiagnostic } from "./jarvis/diagnostic.ts";
+import { JarvisRuntimeRoots } from "./jarvis/paths.ts";
 import { HarnessProject } from "./operations.ts";
 
 /** Render Effect failures as concise CLI output by default. */
@@ -22,6 +24,8 @@ const runCli = Command.run(rootCommand, {
 /** Node runtime edge: provides runtime services, then handles top-level failures. */
 const program = runCli.pipe(
 	Effect.provide(HarnessProject.layer),
+	Effect.provide(JarvisDiagnostic.liveLayer),
+	Effect.provide(JarvisRuntimeRoots.liveLayer),
 	Effect.provide(NodeServices.layer),
 	Effect.catchCause((cause) =>
 		Effect.sync(() => {
