@@ -17,8 +17,10 @@ import { JarvisDiagnostic } from "../src/jarvis/diagnostic.ts";
 import {
 	JarvisParityEntry,
 	JarvisParityManifest,
+	parseJarvisAdapterOracle,
 	parseJarvisCommandManifest,
 	parseJarvisParityManifest,
+	parseJarvisStateFixtureOracle,
 	parseJarvisStateManifest,
 	summarizeJarvisParity,
 	validateJarvisParity,
@@ -28,6 +30,17 @@ import { JarvisPathResolver, JarvisRuntimeRoots } from "../src/jarvis/paths.ts";
 import { HarnessProject } from "../src/operations.ts";
 
 const contextLayer = Layer.mergeAll(JarvisPathResolver.layer, JarvisContextLoader.layer);
+
+const pythonTreeSha256 = (root: string) => {
+	const digest = createHash("sha256");
+	for (const relativePath of globSync("**/*.py", { cwd: root }).sort()) {
+		digest.update(relativePath);
+		digest.update("\0");
+		digest.update(readFileSync(resolve(root, relativePath)));
+		digest.update("\0");
+	}
+	return digest.digest("hex");
+};
 
 describe("Jarvis compatibility kernel", () => {
 	it.effect("loads the frozen Python command and state inventories", () =>
@@ -45,6 +58,14 @@ describe("Jarvis compatibility kernel", () => {
 				yield* fs.readFileString("fixtures/jarvis-v1/parity-manifest.json"),
 				"parity-manifest.json",
 			);
+			const adapterOracle = yield* parseJarvisAdapterOracle(
+				yield* fs.readFileString("fixtures/jarvis-v1/adapter-oracle.json"),
+				"adapter-oracle.json",
+			);
+			const stateFixtureOracle = yield* parseJarvisStateFixtureOracle(
+				yield* fs.readFileString("fixtures/jarvis-v1/state-fixture-oracle.json"),
+				"state-fixture-oracle.json",
+			);
 			yield* validateJarvisParity(parityManifest, commandManifest, stateManifest);
 			const summary = yield* summarizeJarvisParity(parityManifest);
 			const paths = commandManifest.commands.map((entry) => entry.path.join(" "));
@@ -53,14 +74,12 @@ describe("Jarvis compatibility kernel", () => {
 			expect(JSON.stringify(commandManifest)).not.toContain("Sentinel.UNSET");
 			expect(commandManifest.source.pythonSourceSha256).toMatch(/^[a-f0-9]{64}$/);
 			const sourceRoot = resolve("../capability-harnessy-v1-full/resources/jarvis-cli/src");
-			const sourceDigest = createHash("sha256");
-			for (const relativePath of globSync("**/*.py", { cwd: sourceRoot }).sort()) {
-				sourceDigest.update(relativePath);
-				sourceDigest.update("\0");
-				sourceDigest.update(readFileSync(resolve(sourceRoot, relativePath)));
-				sourceDigest.update("\0");
-			}
-			expect(commandManifest.source.pythonSourceSha256).toBe(sourceDigest.digest("hex"));
+			expect(commandManifest.source.pythonSourceSha256).toBe(pythonTreeSha256(sourceRoot));
+			expect(adapterOracle.source.pythonSourceSha256).toBe(pythonTreeSha256(resolve(sourceRoot, "jarvis/adapters")));
+			expect(stateFixtureOracle.pythonSourceSha256).toBe(pythonTreeSha256(resolve(sourceRoot, "jarvis")));
+			expect(stateFixtureOracle.stateManifestSha256).toBe(
+				createHash("sha256").update(readFileSync("fixtures/jarvis-v1/state-manifest.json")).digest("hex"),
+			);
 			expect(new Set(paths).size).toBe(paths.length);
 			expect(paths).toEqual([...paths].sort());
 			expect(paths).toContain("jarvis wiki research");
@@ -68,10 +87,21 @@ describe("Jarvis compatibility kernel", () => {
 			expect(paths).toContain("jarvis sync run");
 			expect(stateManifest.stores.map((store) => store.id)).toContain("pending-suggestions-json-v1");
 			expect(stateManifest.stores.map((store) => store.id)).toContain("sync-state-json-v1");
-			expect(parityManifest.entries).toHaveLength(171);
-			expect(summary.counts.total).toBe(171);
+			expect(stateManifest.stores.find((store) => store.id === "reading-list-url-cache-v1")?.pathTemplate).toBe(
+				"~/.jarvis/cache/reading-list/urls/<sha256>.json",
+			);
+			expect(stateManifest.stores.find((store) => store.id === "fathom-inbox-json-v1")?.pathTemplate).toContain(
+				"meeting-inbox/fathom/<account>/",
+			);
+			expect(stateManifest.stores.find((store) => store.id === "whatsapp-inbox-json-v1")?.pathTemplate).toContain(
+				"whatsapp/<account>/inbox/",
+			);
+			expect(stateManifest.stores.map((store) => store.id)).toContain("whatsapp-thread-json-v1");
+			expect(stateManifest.stores.map((store) => store.id)).toContain("whatsapp-thread-markdown-v1");
+			expect(parityManifest.entries).toHaveLength(177);
+			expect(summary.counts.total).toBe(177);
 			expect(summary.surfaces.find((surface) => surface.surface === "command")?.counts.total).toBe(131);
-			expect(summary.surfaces.find((surface) => surface.surface === "state")?.counts.total).toBe(14);
+			expect(summary.surfaces.find((surface) => surface.surface === "state")?.counts.total).toBe(20);
 			expect(
 				parityManifest.entries
 					.filter((entry) => entry.surface === "context")
@@ -84,15 +114,74 @@ describe("Jarvis compatibility kernel", () => {
 			expect(parityManifest.entries.find((entry) => entry.legacyReference === "jarvis w")?.status).toBe(
 				"intentionally-retired",
 			);
+			expect(adapterOracle.capabilityKeys).toHaveLength(9);
+			expect(adapterOracle.missingCapabilityDefault).toBe(false);
+			expect(adapterOracle.capabilities.anytype?.custom_properties).toBe(false);
+			expect(adapterOracle.capabilities.notion?.custom_properties).toBe(true);
+			expect(adapterOracle.errors.map((error) => error.type)).toEqual([
+				"JarvisBackendError",
+				"ConnectionError",
+				"AuthError",
+				"RateLimitError",
+				"NotFoundError",
+				"NotSupportedError",
+				"AdapterNotFoundError",
+				"ConfigError",
+				"ValidationError",
+			]);
+			expect(adapterOracle.retryPolicy.delayCases.at(-1)).toMatchObject({
+				errorType: "RateLimitError",
+				retryAfterSeconds: 45,
+				delaySeconds: 30,
+			});
+			expect(adapterOracle.retryPolicy.nonRetryableErrors).toEqual([
+				"JarvisBackendError",
+				"AuthError",
+				"NotFoundError",
+				"NotSupportedError",
+				"AdapterNotFoundError",
+				"ConfigError",
+				"ValidationError",
+			]);
+			expect(adapterOracle.retryPolicy.executionCases).toEqual([
+				expect.objectContaining({ case: "transient-then-success", calls: 2, sleeps: [1], terminalError: null }),
+				expect.objectContaining({ case: "auth-fail-fast", calls: 1, sleeps: [], terminalError: "AuthError" }),
+				expect.objectContaining({
+					case: "transient-exhaustion",
+					calls: 4,
+					sleeps: [1, 2, 2.5],
+					terminalError: "ConnectionError",
+				}),
+			]);
+
+			const expectedFixtureValidations = stateManifest.stores.flatMap((store) => [
+				...(store.fixture === undefined ? [] : [`${store.id}:valid:${store.fixture}`]),
+				...(store.malformedFixture === undefined ? [] : [`${store.id}:malformed:${store.malformedFixture}`]),
+			]);
+			expect(
+				stateFixtureOracle.validations.map(
+					(validation) => `${validation.storeId}:${validation.kind}:${validation.fixture}`,
+				),
+			).toEqual(expectedFixtureValidations);
+			for (const validation of stateFixtureOracle.validations) {
+				expect(validation.sha256).toBe(
+					createHash("sha256")
+						.update(readFileSync(`fixtures/jarvis-v1/${validation.fixture}`))
+						.digest("hex"),
+				);
+			}
 
 			for (const store of stateManifest.stores) {
 				if (store.fixture !== undefined) {
 					expect(yield* fs.exists(`fixtures/jarvis-v1/${store.fixture}`)).toBe(true);
-					JSON.parse(yield* fs.readFileString(`fixtures/jarvis-v1/${store.fixture}`));
+					const fixture = yield* fs.readFileString(`fixtures/jarvis-v1/${store.fixture}`);
+					expect(fixture.length).toBeGreaterThan(0);
+					if (store.fixture.endsWith(".json")) JSON.parse(fixture);
 				}
 				if (store.malformedFixture !== undefined) {
 					const malformed = yield* fs.readFileString(`fixtures/jarvis-v1/${store.malformedFixture}`);
-					expect(() => JSON.parse(malformed)).toThrow();
+					expect(malformed.length).toBeGreaterThan(0);
+					if (store.malformedFixture.endsWith(".json")) expect(() => JSON.parse(malformed)).toThrow();
 				}
 			}
 		}).pipe(Effect.provide(NodeServices.layer)),
@@ -294,7 +383,7 @@ describe("Jarvis compatibility kernel", () => {
 				readonly summary: { readonly counts: { readonly total: number; readonly compatible: number } };
 			};
 			expect(output.ok).toBe(true);
-			expect(output.summary.counts.total).toBe(171);
+			expect(output.summary.counts.total).toBe(177);
 			expect(output.summary.counts.compatible).toBeGreaterThan(0);
 		}).pipe(Effect.provide(NodeServices.layer), Effect.provide(TestConsole.layer)),
 	);

@@ -1019,9 +1019,9 @@
       "rationale": "Interactive hsy does not own persistent process supervision."
     },
     {
-      "id": "state:channel-inboxes-v1",
+      "id": "state:fathom-inbox-json-v1",
       "surface": "state",
-      "legacyReference": "channel-inboxes-v1",
+      "legacyReference": "fathom-inbox-json-v1",
       "status": "missing"
     },
     {
@@ -1063,6 +1063,12 @@
       "status": "missing"
     },
     {
+      "id": "state:plan-apply-json-v1",
+      "surface": "state",
+      "legacyReference": "plan-apply-json-v1",
+      "status": "missing"
+    },
+    {
       "id": "state:project-context-v1",
       "surface": "state",
       "legacyReference": "project-context-v1",
@@ -1071,15 +1077,21 @@
       "rationale": "The native loader reproduces the twelve-file legacy merge contract."
     },
     {
-      "id": "state:reading-list-cache-v1",
+      "id": "state:reading-list-result-cache-v1",
       "surface": "state",
-      "legacyReference": "reading-list-cache-v1",
+      "legacyReference": "reading-list-result-cache-v1",
       "status": "missing"
     },
     {
-      "id": "state:saved-plan-json-v1",
+      "id": "state:reading-list-url-cache-v1",
       "surface": "state",
-      "legacyReference": "saved-plan-json-v1",
+      "legacyReference": "reading-list-url-cache-v1",
+      "status": "missing"
+    },
+    {
+      "id": "state:schedule-plan-json-v1",
+      "surface": "state",
+      "legacyReference": "schedule-plan-json-v1",
       "status": "missing"
     },
     {
@@ -1098,6 +1110,30 @@
       "id": "state:sync-state-json-v1",
       "surface": "state",
       "legacyReference": "sync-state-json-v1",
+      "status": "missing"
+    },
+    {
+      "id": "state:weekly-plan-markdown-v1",
+      "surface": "state",
+      "legacyReference": "weekly-plan-markdown-v1",
+      "status": "missing"
+    },
+    {
+      "id": "state:whatsapp-inbox-json-v1",
+      "surface": "state",
+      "legacyReference": "whatsapp-inbox-json-v1",
+      "status": "missing"
+    },
+    {
+      "id": "state:whatsapp-thread-json-v1",
+      "surface": "state",
+      "legacyReference": "whatsapp-thread-json-v1",
+      "status": "missing"
+    },
+    {
+      "id": "state:whatsapp-thread-markdown-v1",
+      "surface": "state",
+      "legacyReference": "whatsapp-thread-markdown-v1",
       "status": "missing"
     },
     {

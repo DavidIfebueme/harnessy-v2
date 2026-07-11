@@ -74,6 +74,8 @@ export {
 } from "./jarvis/context.ts";
 export { JarvisDiagnostic, JarvisDiagnosticResult, JarvisMigrationStatus } from "./jarvis/diagnostic.ts";
 export {
+	JarvisAdapterErrorOracle,
+	JarvisAdapterOracle,
 	JarvisCommandArgument,
 	JarvisCommandEntry,
 	JarvisCommandManifest,
@@ -88,11 +90,17 @@ export {
 	JarvisParitySurfaceSummary,
 	JarvisParityValidationError,
 	JarvisProtocolSurface,
+	JarvisRetryDelayOracle,
+	JarvisRetryExecutionOracle,
+	JarvisStateFixtureOracle,
+	JarvisStateFixtureValidation,
 	JarvisStateFormat,
 	JarvisStateManifest,
 	JarvisStateStoreManifest,
+	parseJarvisAdapterOracle,
 	parseJarvisCommandManifest,
 	parseJarvisParityManifest,
+	parseJarvisStateFixtureOracle,
 	parseJarvisStateManifest,
 	summarizeJarvisParity,
 	validateJarvisParity,

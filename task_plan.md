@@ -140,7 +140,7 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 - [x] Commit a canonical command manifest covering aliases, arguments, options, defaults, and help.
 - [ ] Fix `jarvis docs --json`; it currently omits implemented command groups.
 - [ ] Inventory and fixture every persisted JSON/YAML/Markdown format.
-- [ ] Capture adapter capability matrices and typed failure behavior.
+- [x] Capture adapter capability matrices and typed failure behavior.
 - [ ] Select representative Python tests as cross-runtime golden fixtures.
 - [x] Add a parity dashboard that reports `missing`, `partial`, `compatible`, or `intentionally retired` by feature and records the approved replacement/rationale for every retirement.
 

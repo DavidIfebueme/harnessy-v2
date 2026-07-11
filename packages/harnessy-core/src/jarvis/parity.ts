@@ -105,6 +105,7 @@ export const JarvisStateFormat = Schema.Literals([
 	"yaml",
 	"json",
 	"text",
+	"markdown",
 	"json-directory",
 	"yaml-markdown-json-directory",
 	"markdown-directory",
@@ -135,9 +136,74 @@ export class JarvisStateManifest extends Schema.Class<JarvisStateManifest>("Jarv
 	stores: Schema.Array(JarvisStateStoreManifest),
 }) {}
 
+export class JarvisStateFixtureValidation extends Schema.Class<JarvisStateFixtureValidation>(
+	"JarvisStateFixtureValidation",
+)({
+	storeId: Schema.String,
+	kind: Schema.Literals(["valid", "malformed"]),
+	fixture: Schema.String,
+	sha256: Schema.String,
+	validator: Schema.String,
+}) {}
+
+export class JarvisStateFixtureOracle extends Schema.Class<JarvisStateFixtureOracle>("JarvisStateFixtureOracle")({
+	schemaVersion: Schema.Literal(1),
+	pythonSourceSha256: Schema.String,
+	stateManifestSha256: Schema.String,
+	validations: Schema.Array(JarvisStateFixtureValidation),
+}) {}
+
+export class JarvisAdapterErrorOracle extends Schema.Class<JarvisAdapterErrorOracle>("JarvisAdapterErrorOracle")({
+	type: Schema.String,
+	base: Schema.String,
+	message: Schema.String,
+	backend: Schema.NullOr(Schema.String),
+	rendered: Schema.String,
+	retryableByDefault: Schema.Boolean,
+	fields: Schema.Record(Schema.String, Schema.Unknown),
+}) {}
+
+export class JarvisRetryDelayOracle extends Schema.Class<JarvisRetryDelayOracle>("JarvisRetryDelayOracle")({
+	errorType: Schema.String,
+	attempt: Schema.Int,
+	retryAfterSeconds: Schema.optional(Schema.Number),
+	delaySeconds: Schema.Number,
+}) {}
+
+export class JarvisRetryExecutionOracle extends Schema.Class<JarvisRetryExecutionOracle>("JarvisRetryExecutionOracle")({
+	case: Schema.String,
+	calls: Schema.Int,
+	sleeps: Schema.Array(Schema.Number),
+	terminalError: Schema.NullOr(Schema.String),
+}) {}
+
+export class JarvisAdapterOracle extends Schema.Class<JarvisAdapterOracle>("JarvisAdapterOracle")({
+	schemaVersion: Schema.Literal(1),
+	source: Schema.Struct({
+		path: Schema.String,
+		pythonSourceSha256: Schema.String,
+	}),
+	capabilityKeys: Schema.Array(Schema.String),
+	missingCapabilityDefault: Schema.Boolean,
+	capabilities: Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Boolean)),
+	errors: Schema.Array(JarvisAdapterErrorOracle),
+	retryPolicy: Schema.Struct({
+		maxAttempts: Schema.Int,
+		baseDelaySeconds: Schema.Number,
+		maxDelaySeconds: Schema.Number,
+		exponentialBase: Schema.Number,
+		retryableErrors: Schema.Array(Schema.String),
+		nonRetryableErrors: Schema.Array(Schema.String),
+		delayCases: Schema.Array(JarvisRetryDelayOracle),
+		executionCases: Schema.Array(JarvisRetryExecutionOracle),
+	}),
+}) {}
+
 const JarvisParityManifestJson = Schema.fromJsonString(JarvisParityManifest);
 const JarvisCommandManifestJson = Schema.fromJsonString(JarvisCommandManifest);
 const JarvisStateManifestJson = Schema.fromJsonString(JarvisStateManifest);
+const JarvisStateFixtureOracleJson = Schema.fromJsonString(JarvisStateFixtureOracle);
+const JarvisAdapterOracleJson = Schema.fromJsonString(JarvisAdapterOracle);
 
 const parseManifest = <A, I>(schema: Schema.Codec<A, I, never, never>, label: string) =>
 	Effect.fn(label)(function* (raw: string, sourcePath: string) {
@@ -154,6 +220,11 @@ const parseManifest = <A, I>(schema: Schema.Codec<A, I, never, never>, label: st
 
 export const parseJarvisCommandManifest = parseManifest(JarvisCommandManifestJson, "JarvisCommandManifest.parse");
 export const parseJarvisStateManifest = parseManifest(JarvisStateManifestJson, "JarvisStateManifest.parse");
+export const parseJarvisStateFixtureOracle = parseManifest(
+	JarvisStateFixtureOracleJson,
+	"JarvisStateFixtureOracle.parse",
+);
+export const parseJarvisAdapterOracle = parseManifest(JarvisAdapterOracleJson, "JarvisAdapterOracle.parse");
 
 export const parseJarvisParityManifest = Effect.fn("JarvisParityManifest.parse")(function* (
 	raw: string,
