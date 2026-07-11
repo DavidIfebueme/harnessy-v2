@@ -152,7 +152,7 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 - [ ] Port Pydantic domain models to `Schema.Class` without duplicate legacy model families.
 - [ ] Port backend exceptions to specific `Schema.TaggedErrorClass` types rather than one generic error.
 - [ ] Implement Jarvis path resolution as an injected service; no module-load `homedir()` constants.
-- [ ] Decode `~/.jarvis/config.yaml` plus `JARVIS_*` environment overrides.
+- [x] Decode `~/.jarvis/config.yaml` plus `JARVIS_*` environment overrides.
 - [ ] Port global/folder context loading, 12 standard files, override semantics, and `{{global}}` expansion.
 - [ ] Implement versioned readers/writers for config, pending suggestions, plans, journal state, sync state, presets, caches, wiki state, and channel inboxes.
 - [ ] Add corruption-safe parsing, atomic writes, file locking where concurrent webhook/agent access is possible, and migration backups.

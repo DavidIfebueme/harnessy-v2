@@ -1052,9 +1052,9 @@
       "id": "state:legacy-config-yaml-v1",
       "surface": "state",
       "legacyReference": "legacy-config-yaml-v1",
-      "status": "partial",
+      "status": "compatible",
       "replacement": "JarvisConfigReader",
-      "rationale": "YAML decoding is native; full environment resolution remains."
+      "rationale": "Effect schemas reproduce legacy YAML, environment, account, and credential-source resolution."
     },
     {
       "id": "state:pending-suggestions-json-v1",

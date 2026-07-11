@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
-import { FileSystem, Path } from "effect";
+import { FileSystem, Path, Redacted } from "effect";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { TestConsole } from "effect/testing";
@@ -12,8 +12,11 @@ import { Command } from "effect/unstable/cli";
 
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
+import { JarvisConfigReader } from "../src/jarvis/config.ts";
 import { JARVIS_CONTEXT_FILES, JarvisContextLoader } from "../src/jarvis/context.ts";
+import { JarvisCredentialResolver } from "../src/jarvis/credentials.ts";
 import { JarvisDiagnostic } from "../src/jarvis/diagnostic.ts";
+import { decodeJarvisEnvironment, JarvisEnvironment } from "../src/jarvis/environment.ts";
 import {
 	JarvisParityEntry,
 	JarvisParityManifest,
@@ -273,7 +276,12 @@ describe("Jarvis compatibility kernel", () => {
 						Effect.provide(JarvisRuntimeRoots.testLayer(home)),
 					);
 
-				for (const raw of ["", "# comment only\n", "[]\n"]) {
+				for (const raw of [
+					"",
+					"# comment only\n",
+					"[]\n",
+					"unknown_root: ignored\ncontent:\n  unknown_nested: ignored\n",
+				]) {
 					const result = yield* inspect(raw);
 					expect(result.config).toMatchObject({
 						status: "valid",
@@ -312,6 +320,238 @@ describe("Jarvis compatibility kernel", () => {
 					expect(result.config.status).toBe("invalid");
 					expect(result.config.issues).toEqual(["Legacy Jarvis configuration failed schema validation."]);
 				}
+				expect(yield* fs.exists(path.join(home, ".harnessy"))).toBe(false);
+			}),
+		).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("resolves full config defaults and nested environment precedence", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				yield* fs.makeDirectory(path.join(home, ".jarvis"), { recursive: true });
+				yield* fs.makeDirectory(target, { recursive: true });
+				yield* fs.writeFileString(
+					path.join(home, ".jarvis", "config.yaml"),
+					[
+						"version: 1",
+						"active_backend: anytype",
+						"content:",
+						"  root_path: ./content",
+						"analytics:",
+						"  metrics_file: ./metrics.json",
+						"fathom:",
+						"  accounts:",
+						"    work:",
+						"      email: fixture@example.com",
+						"      api_key_env_var: FATHOM_API_KEY_WORK",
+					].join("\n"),
+				);
+
+				const configLayer = JarvisConfigReader.layer.pipe(
+					Layer.provide(
+						JarvisEnvironment.testLayer({
+							jarvis_version: "2",
+							JARVIS_ACTIVE_BACKEND: "notion",
+							JARVIS_NOTION_TOKEN: "ignored-by-config-schema",
+							JARVIS_BACKENDS: JSON.stringify({
+								notion: {
+									workspace_id: "workspace-json",
+									journal_database_id: "journal-json",
+									property_mappings: { title: "Custom" },
+								},
+							}),
+							JARVIS_BACKENDS__NOTION__WORKSPACE_ID: "workspace-env",
+							JARVIS_BACKENDS__NOTION__TASK_DATABASE_ID: "tasks-env",
+							JARVIS_ANALYTICS__ENABLED: "true",
+							JARVIS_FATHOM__DEFAULT_ACCOUNT: "work",
+							JARVIS_FATHOM__ACCOUNTS__WORK__WEBHOOK_SECRET_ENV_VAR: "FATHOM_SECRET_WORK",
+							JARVIS_WHATSAPP__DEFAULT_ACCOUNT: "personal",
+							JARVIS_WHATSAPP__ACCOUNTS__PERSONAL__PHONE_NUMBER_ID: "phone-env",
+						}),
+					),
+				);
+				const resolved = yield* Effect.gen(function* () {
+					const paths = yield* (yield* JarvisPathResolver).resolve(target);
+					return yield* (yield* JarvisConfigReader).loadResolved(paths);
+				}).pipe(
+					Effect.provide(Layer.mergeAll(JarvisPathResolver.layer, configLayer)),
+					Effect.provide(JarvisRuntimeRoots.testLayer(home)),
+				);
+
+				expect(resolved.version).toBe(2);
+				expect(resolved.activeBackend).toBe("notion");
+				expect(resolved.notion).toMatchObject({
+					workspaceId: "workspace-env",
+					taskDatabaseId: "tasks-env",
+					journalDatabaseId: "journal-json",
+				});
+				expect(resolved.notion?.propertyMappings).toEqual({ title: "Custom" });
+				expect(resolved.content).toMatchObject({ rootPath: "./content", anytypeRootCollection: "Content" });
+				expect(resolved.analytics).toMatchObject({ enabled: true, metricsFile: "./metrics.json" });
+				expect(resolved.fathom.accounts.work).toMatchObject({
+					email: "fixture@example.com",
+					apiKeyEnvVar: "FATHOM_API_KEY_WORK",
+					webhookSecretEnvVar: "FATHOM_SECRET_WORK",
+				});
+				expect(resolved.whatsapp.accounts.personal).toMatchObject({
+					provider: "meta",
+					phoneNumberId: "phone-env",
+					apiVersion: "v24.0",
+				});
+			}),
+		).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("rejects malformed and non-object JSON for complex Pydantic environment fields", () =>
+		Effect.gen(function* () {
+			for (const value of ["not-json", "[]"]) {
+				const error = yield* decodeJarvisEnvironment([
+					["JARVIS_BACKENDS", value],
+					["JARVIS_BACKENDS__NOTION__WORKSPACE_ID", "nested-value"],
+				]).pipe(Effect.flip);
+				expect(error).toBeDefined();
+			}
+		}),
+	);
+
+	it.effect("resolves named credentials from environment and managed files without disclosure", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* fs.makeTempDirectoryScoped();
+				const home = path.join(root, "home");
+				const target = path.join(root, "project");
+				yield* fs.makeDirectory(path.join(home, ".jarvis", "env"), { recursive: true });
+				yield* fs.makeDirectory(target, { recursive: true });
+				yield* fs.writeFileString(
+					path.join(home, ".jarvis", "config.yaml"),
+					[
+						"fathom:",
+						"  default_account: work",
+						"  accounts:",
+						"    work:",
+						"      api_key_env_var: FATHOM_API_KEY_WORK",
+						"whatsapp:",
+						"  default_account: personal",
+						"  accounts:",
+						"    personal:",
+						"      phone_number_id: phone-config",
+						"      access_token_env_var: WA_TOKEN_PERSONAL",
+						"    fallback:",
+						"      phone_number_id: ''",
+					].join("\n"),
+				);
+				yield* fs.writeFileString(
+					path.join(home, ".jarvis", "env", "fathom.zsh"),
+					[
+						"malformed line containing managed-secret-ignored",
+						"export BROKEN",
+						"export MALFORMED='unterminated",
+						"export FATHOM_API_KEY_WORK='managed fathom secret' # accepted trailing token",
+						"export FATHOM_API_KEY_WORK='duplicate-must-not-win'",
+						"export JARVIS_SLACK_TOKEN='managed-backend-token-must-not-resolve'",
+					].join("\n"),
+				);
+
+				const environmentLayer = JarvisEnvironment.testLayer({
+					WA_TOKEN_PERSONAL: "environment-wa-secret",
+					JARVIS_NOTION_TOKEN: "specific-notion-secret",
+					NOTION_TOKEN: "fallback-notion-secret",
+					JARVIS_WHATSAPP_PHONE_NUMBER_ID: "phone-from-environment",
+				});
+				const services = Layer.mergeAll(
+					JarvisPathResolver.layer,
+					JarvisConfigReader.layer.pipe(Layer.provide(environmentLayer)),
+					JarvisCredentialResolver.layer.pipe(Layer.provide(environmentLayer)),
+				);
+				const result = yield* Effect.gen(function* () {
+					const paths = yield* (yield* JarvisPathResolver).resolve(target);
+					const config = yield* (yield* JarvisConfigReader).loadResolved(paths);
+					const credentials = yield* JarvisCredentialResolver;
+					const fathom = yield* credentials.fathomApiKey(config, paths, "");
+					const whatsapp = yield* credentials.whatsappAccessToken(config);
+					const notion = yield* credentials.backendToken("notion");
+					const phoneNumber = yield* credentials.whatsappPhoneNumberId(config);
+					const fallbackPhone = yield* credentials.whatsappPhoneNumberId(config, "fallback");
+					const missing = yield* credentials.whatsappAppSecret(config).pipe(Effect.flip);
+					const managedBackend = yield* credentials.backendToken("slack").pipe(Effect.flip);
+					const unknown = yield* credentials.fathomApiKey(config, paths, "unknown").pipe(Effect.flip);
+					const presence = yield* credentials.inspectPresence(config, paths);
+					return {
+						fathom,
+						whatsapp,
+						notion,
+						phoneNumber,
+						fallbackPhone,
+						missing,
+						managedBackend,
+						unknown,
+						presence,
+					};
+				}).pipe(Effect.provide(services), Effect.provide(JarvisRuntimeRoots.testLayer(home)));
+
+				expect(result.fathom).toMatchObject({
+					account: "work",
+					source: "managed-env-file",
+					envVar: "FATHOM_API_KEY_WORK",
+				});
+				expect(Redacted.value(result.fathom.value)).toBe("managed fathom secret");
+				expect(result.whatsapp).toMatchObject({
+					account: "personal",
+					source: "environment",
+					envVar: "WA_TOKEN_PERSONAL",
+				});
+				expect(Redacted.value(result.whatsapp.value)).toBe("environment-wa-secret");
+				expect(result.notion).toMatchObject({ source: "environment", envVar: "JARVIS_NOTION_TOKEN" });
+				expect(Redacted.value(result.notion.value)).toBe("specific-notion-secret");
+				expect(result.phoneNumber).toMatchObject({
+					account: "personal",
+					source: "config",
+					envVar: null,
+					value: "phone-config",
+				});
+				expect(result.fallbackPhone).toMatchObject({
+					account: "fallback",
+					source: "environment",
+					envVar: "JARVIS_WHATSAPP_PHONE_NUMBER_ID",
+					value: "phone-from-environment",
+				});
+				expect(String(result.fathom.value)).toBe("<redacted>");
+				expect(JSON.stringify(result.fathom)).not.toContain("managed fathom secret");
+				expect(result.missing).toMatchObject({
+					_tag: "JarvisCredentialError",
+					backend: "whatsapp",
+					credential: "app-secret",
+					reason: "missing",
+				});
+				expect(result.managedBackend).toMatchObject({
+					_tag: "JarvisCredentialError",
+					backend: "slack",
+					reason: "missing",
+				});
+				expect(result.unknown).toMatchObject({
+					_tag: "JarvisCredentialError",
+					backend: "fathom",
+					account: "unknown",
+					reason: "unknown-account",
+				});
+				expect(result.presence).toContainEqual(
+					expect.objectContaining({
+						backend: "fathom",
+						credential: "api-key",
+						present: true,
+						source: "managed-env-file",
+						envVar: "FATHOM_API_KEY_WORK",
+					}),
+				);
+				expect(JSON.stringify(result.presence)).not.toContain("managed fathom secret");
+				expect(JSON.stringify(result.presence)).not.toContain("environment-wa-secret");
 			}),
 		).pipe(Effect.provide(NodeServices.layer)),
 	);

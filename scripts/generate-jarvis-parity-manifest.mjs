@@ -75,17 +75,22 @@ const commandEntries = commandManifest.commands.map((command) => {
 });
 
 const stateEntries = stateManifest.stores.map((store) => {
-	const status = store.id === "project-context-v1" ? "compatible" : store.id === "legacy-config-yaml-v1" ? "partial" : "missing";
+	const status = ["project-context-v1", "legacy-config-yaml-v1"].includes(store.id) ? "compatible" : "missing";
+	const compatibility =
+		store.id === "project-context-v1"
+			? { replacement: "JarvisContextLoader", rationale: "The native loader reproduces the twelve-file legacy merge contract." }
+			: store.id === "legacy-config-yaml-v1"
+				? {
+						replacement: "JarvisConfigReader",
+						rationale: "Effect schemas reproduce legacy YAML, environment, account, and credential-source resolution.",
+					}
+				: {};
 	return {
 		id: `state:${store.id}`,
 		surface: "state",
 		legacyReference: store.id,
 		status,
-		...(status === "compatible"
-			? { replacement: "JarvisContextLoader", rationale: "The native loader reproduces the twelve-file legacy merge contract." }
-			: status === "partial"
-				? { replacement: "JarvisConfigReader", rationale: "YAML decoding is native; full environment resolution remains." }
-				: {}),
+		...compatibility,
 	};
 });
 

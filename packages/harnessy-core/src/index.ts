@@ -65,6 +65,22 @@ export { HARNESSY_VERSION } from "./constants.ts";
 export { HarnessError } from "./errors.ts";
 export { JarvisConfigInspection, JarvisConfigReader, JarvisConfigStatus } from "./jarvis/config.ts";
 export {
+	JarvisAnalyticsConfig,
+	JarvisAnytypeConfig,
+	JarvisBackend,
+	JarvisContentConfig,
+	JarvisFathomAccountConfig,
+	JarvisFathomConfig,
+	JarvisLegacyConfig,
+	JarvisLegacyConfigOverride,
+	JarvisNotionConfig,
+	JarvisResolvedConfig,
+	JarvisWhatsAppAccountConfig,
+	JarvisWhatsAppConfig,
+	mergeJarvisLegacyConfig,
+	resolveJarvisConfig,
+} from "./jarvis/config-model.ts";
+export {
 	JARVIS_CONTEXT_FILES,
 	JarvisContextDocument,
 	JarvisContextDocumentSummary,
@@ -72,7 +88,17 @@ export {
 	JarvisContextLoadResult,
 	JarvisContextSource,
 } from "./jarvis/context.ts";
+export {
+	JarvisCredential,
+	JarvisCredentialError,
+	JarvisCredentialPresence,
+	JarvisCredentialResolver,
+	JarvisCredentialSource,
+	JarvisSetting,
+	JarvisSettingSource,
+} from "./jarvis/credentials.ts";
 export { JarvisDiagnostic, JarvisDiagnosticResult, JarvisMigrationStatus } from "./jarvis/diagnostic.ts";
+export { decodeJarvisEnvironment, JarvisEnvironment } from "./jarvis/environment.ts";
 export {
 	JarvisAdapterErrorOracle,
 	JarvisAdapterOracle,

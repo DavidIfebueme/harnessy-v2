@@ -6,6 +6,7 @@ import * as Layer from "effect/Layer";
 import { causeMessage, HarnessError } from "../errors.ts";
 import { JarvisConfigInspection, JarvisConfigReader } from "./config.ts";
 import { JarvisContextDocumentSummary, JarvisContextLoader } from "./context.ts";
+import { JarvisCredentialPresence, JarvisCredentialResolver } from "./credentials.ts";
 import { JarvisPathResolver, JarvisPaths } from "./paths.ts";
 
 export const JarvisMigrationStatus = Schema.Literals(["empty", "legacy", "canonical", "mixed"]);
@@ -16,6 +17,7 @@ export class JarvisDiagnosticResult extends Schema.Class<JarvisDiagnosticResult>
 	migrationStatus: JarvisMigrationStatus,
 	paths: JarvisPaths,
 	config: JarvisConfigInspection,
+	credentials: Schema.Array(JarvisCredentialPresence),
 	context: Schema.Array(JarvisContextDocumentSummary),
 	legacyDetected: Schema.Boolean,
 	canonicalDetected: Schema.Boolean,
@@ -35,6 +37,7 @@ export class JarvisDiagnostic extends Context.Service<
 			const fs = yield* FileSystem.FileSystem;
 			const paths = yield* JarvisPathResolver;
 			const config = yield* JarvisConfigReader;
+			const credentials = yield* JarvisCredentialResolver;
 			const context = yield* JarvisContextLoader;
 
 			const pathExists = (path: string) =>
@@ -67,12 +70,19 @@ export class JarvisDiagnostic extends Context.Service<
 								? "canonical"
 								: "empty";
 				const configInspection = yield* config.inspectLegacy(resolved);
+				const credentialPresence =
+					configInspection.status === "invalid"
+						? []
+						: yield* config
+								.loadResolved(resolved)
+								.pipe(Effect.flatMap((loaded) => credentials.inspectPresence(loaded, resolved)));
 				const contextResult = yield* context.loadLegacy(resolved);
 
 				return new JarvisDiagnosticResult({
 					migrationStatus,
 					paths: resolved,
 					config: configInspection,
+					credentials: credentialPresence,
 					context: contextResult.summaries,
 					legacyDetected,
 					canonicalDetected,
@@ -85,6 +95,13 @@ export class JarvisDiagnostic extends Context.Service<
 	);
 
 	static readonly liveLayer = JarvisDiagnostic.layer.pipe(
-		Layer.provide(Layer.mergeAll(JarvisPathResolver.layer, JarvisConfigReader.layer, JarvisContextLoader.layer)),
+		Layer.provide(
+			Layer.mergeAll(
+				JarvisPathResolver.layer,
+				JarvisConfigReader.liveLayer,
+				JarvisCredentialResolver.liveLayer,
+				JarvisContextLoader.layer,
+			),
+		),
 	);
 }

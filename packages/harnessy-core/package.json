@@ -31,10 +31,12 @@
 		"@earendil-works/pi-coding-agent": "0.80.3",
 		"@effect/platform-node": "4.0.0-beta.85",
 		"effect": "4.0.0-beta.85",
+		"shell-quote": "1.8.4",
 		"yaml": "2.9.0"
 	},
 	"devDependencies": {
 		"@effect/vitest": "4.0.0-beta.85",
+		"@types/shell-quote": "1.7.5",
 		"shx": "0.4.0",
 		"vitest": "4.1.9"
 	},

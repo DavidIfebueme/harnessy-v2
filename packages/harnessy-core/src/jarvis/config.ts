@@ -5,106 +5,26 @@ import * as Layer from "effect/Layer";
 import { parseDocument } from "yaml";
 
 import { causeMessage, HarnessError } from "../errors.ts";
+import {
+	JarvisBackend,
+	JarvisLegacyConfig,
+	type JarvisResolvedConfig,
+	mergeJarvisLegacyConfig,
+	resolveJarvisConfig,
+} from "./config-model.ts";
+import { decodeJarvisEnvironment, JarvisEnvironment } from "./environment.ts";
 import type { JarvisPaths } from "./paths.ts";
 
 export const JarvisConfigStatus = Schema.Literals(["missing", "valid", "invalid"]);
 export type JarvisConfigStatus = typeof JarvisConfigStatus.Type;
-
-const LegacyBackend = Schema.Literals(["anytype", "notion"]);
-const NullableString = Schema.NullOr(Schema.String);
-const LegacyIntegerFromString = Schema.Trim.pipe(
-	Schema.check(Schema.isPattern(/^[+-]?\d(?:_?\d)*(?:\.0+)?$/)),
-	Schema.decodeTo(
-		Schema.String,
-		SchemaTransformation.transform({ decode: (value) => value.replaceAll("_", ""), encode: (value) => value }),
-	),
-	Schema.decodeTo(Schema.Int, SchemaTransformation.numberFromString),
-);
-const LegacyInteger = Schema.Union([Schema.Int, LegacyIntegerFromString, Schema.flip(Schema.BooleanFromBit)]);
-const LegacyTrueString = Schema.String.pipe(
-	Schema.check(Schema.isPattern(/^(?:1|true|t|on|yes|y)$/i)),
-	Schema.decodeTo(
-		Schema.Literal(true),
-		SchemaTransformation.transform({ decode: () => true as const, encode: () => "true" }),
-	),
-);
-const LegacyFalseString = Schema.String.pipe(
-	Schema.check(Schema.isPattern(/^(?:0|false|f|off|no|n)$/i)),
-	Schema.decodeTo(
-		Schema.Literal(false),
-		SchemaTransformation.transform({ decode: () => false as const, encode: () => "false" }),
-	),
-);
-const LegacyBoolean = Schema.Union([Schema.Boolean, Schema.BooleanFromBit, LegacyTrueString, LegacyFalseString]);
-const LegacyNotionConfig = Schema.Struct({
-	workspace_id: Schema.String,
-	task_database_id: Schema.String,
-	journal_database_id: Schema.String,
-	property_mappings: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-});
-const LegacyAnytypeConfig = Schema.Struct({
-	default_space_id: Schema.optional(NullableString),
-});
-const LegacyFathomAccountConfig = Schema.Struct({
-	email: Schema.optional(NullableString),
-	api_key_env_var: Schema.optional(Schema.String),
-	webhook_secret_env_var: Schema.optional(Schema.String),
-	webhook_id: Schema.optional(NullableString),
-	webhook_destination_url: Schema.optional(NullableString),
-});
-const LegacyWhatsAppAccountConfig = Schema.Struct({
-	provider: Schema.optional(Schema.Literal("meta")),
-	phone_number_id: Schema.optional(NullableString),
-	business_account_id: Schema.optional(NullableString),
-	access_token_env_var: Schema.optional(Schema.String),
-	app_secret_env_var: Schema.optional(Schema.String),
-	verify_token_env_var: Schema.optional(Schema.String),
-	api_version: Schema.optional(Schema.String),
-	webhook_destination_url: Schema.optional(NullableString),
-});
-const LegacyJarvisConfig = Schema.Struct({
-	version: Schema.optional(LegacyInteger),
-	active_backend: Schema.optional(LegacyBackend),
-	backends: Schema.optional(
-		Schema.Struct({
-			anytype: Schema.optional(LegacyAnytypeConfig),
-			notion: Schema.optional(Schema.NullOr(LegacyNotionConfig)),
-		}),
-	),
-	content: Schema.optional(
-		Schema.Struct({
-			root_path: Schema.optional(NullableString),
-			anytype_space_name: Schema.optional(NullableString),
-			anytype_root_collection: Schema.optional(Schema.String),
-		}),
-	),
-	analytics: Schema.optional(
-		Schema.Struct({
-			enabled: Schema.optional(LegacyBoolean),
-			metrics_file: Schema.optional(Schema.String),
-		}),
-	),
-	fathom: Schema.optional(
-		Schema.Struct({
-			default_account: Schema.optional(NullableString),
-			accounts: Schema.optional(Schema.Record(Schema.String, LegacyFathomAccountConfig)),
-		}),
-	),
-	whatsapp: Schema.optional(
-		Schema.Struct({
-			default_account: Schema.optional(NullableString),
-			accounts: Schema.optional(Schema.Record(Schema.String, LegacyWhatsAppAccountConfig)),
-		}),
-	),
-});
 
 /** Redacted, read-only result of inspecting legacy Jarvis YAML configuration. */
 export class JarvisConfigInspection extends Schema.Class<JarvisConfigInspection>("JarvisConfigInspection")({
 	status: JarvisConfigStatus,
 	path: Schema.String,
 	version: Schema.NullOr(Schema.Number),
-	activeBackend: Schema.NullOr(LegacyBackend),
-	configuredBackends: Schema.Array(LegacyBackend),
+	activeBackend: Schema.NullOr(JarvisBackend),
+	configuredBackends: Schema.Array(JarvisBackend),
 	sections: Schema.Array(Schema.String),
 	issues: Schema.Array(Schema.String),
 }) {}
@@ -132,25 +52,25 @@ const invalidInspection = (path: string, issues: ReadonlyArray<string>) =>
 	});
 
 const LegacyNullConfig = Schema.Null.pipe(
-	Schema.decodeTo(LegacyJarvisConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => null })),
+	Schema.decodeTo(JarvisLegacyConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => null })),
 );
 const LegacyFalseConfig = Schema.Literal(false).pipe(
-	Schema.decodeTo(LegacyJarvisConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => false })),
+	Schema.decodeTo(JarvisLegacyConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => false })),
 );
 const LegacyZeroConfig = Schema.Literal(0).pipe(
-	Schema.decodeTo(LegacyJarvisConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => 0 })),
+	Schema.decodeTo(JarvisLegacyConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => 0 })),
 );
 const LegacyEmptyStringConfig = Schema.Literal("").pipe(
-	Schema.decodeTo(LegacyJarvisConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => "" })),
+	Schema.decodeTo(JarvisLegacyConfig, SchemaTransformation.transform({ decode: () => ({}), encode: () => "" })),
 );
 const LegacyEmptyArrayConfig = Schema.Tuple([]).pipe(
 	Schema.decodeTo(
-		LegacyJarvisConfig,
+		JarvisLegacyConfig,
 		SchemaTransformation.transform({ decode: () => ({}), encode: () => [] as const }),
 	),
 );
 const LegacyJarvisConfigInput = Schema.Union([
-	LegacyJarvisConfig,
+	JarvisLegacyConfig,
 	LegacyNullConfig,
 	LegacyFalseConfig,
 	LegacyZeroConfig,
@@ -163,12 +83,14 @@ export class JarvisConfigReader extends Context.Service<
 	JarvisConfigReader,
 	{
 		readonly inspectLegacy: (paths: JarvisPaths) => Effect.Effect<JarvisConfigInspection, HarnessError>;
+		readonly loadResolved: (paths: JarvisPaths) => Effect.Effect<JarvisResolvedConfig, HarnessError>;
 	}
 >()("@harnessy/core/JarvisConfigReader") {
 	static readonly layer = Layer.effect(
 		JarvisConfigReader,
 		Effect.gen(function* () {
 			const fs = yield* FileSystem.FileSystem;
+			const environment = yield* JarvisEnvironment;
 
 			const inspectLegacy = Effect.fn("JarvisConfigReader.inspectLegacy")(function* (paths: JarvisPaths) {
 				const configPath = paths.legacyGlobalConfigFile;
@@ -230,7 +152,69 @@ export class JarvisConfigReader extends Context.Service<
 				);
 			});
 
-			return { inspectLegacy };
+			const loadResolved = Effect.fn("JarvisConfigReader.loadResolved")(function* (paths: JarvisPaths) {
+				const configPath = paths.legacyGlobalConfigFile;
+				const present = yield* fs.exists(configPath).pipe(
+					Effect.mapError(
+						(cause) =>
+							new HarnessError({
+								message: `Could not inspect Jarvis config ${configPath}: ${causeMessage(cause)}`,
+								cause,
+							}),
+					),
+				);
+				let fileConfig: JarvisLegacyConfig = {};
+				if (present) {
+					const raw = yield* fs.readFileString(configPath).pipe(
+						Effect.mapError(
+							(cause) =>
+								new HarnessError({
+									message: `Could not read Jarvis config ${configPath}: ${causeMessage(cause)}`,
+									cause,
+								}),
+						),
+					);
+					const document = parseDocument(raw);
+					if (document.errors.length > 0) {
+						yield* new HarnessError({
+							message: `Invalid YAML syntax in legacy Jarvis configuration ${configPath}`,
+						});
+					}
+					const decoded = yield* Effect.try({
+						try: () => document.toJS() as unknown,
+						catch: (cause) =>
+							new HarnessError({ message: `Could not decode legacy Jarvis configuration ${configPath}`, cause }),
+					});
+					fileConfig = yield* Schema.decodeUnknownEffect(LegacyJarvisConfigInput)(decoded).pipe(
+						Effect.mapError(
+							(cause) =>
+								new HarnessError({
+									message: `Legacy Jarvis configuration failed schema validation: ${configPath}`,
+									cause,
+								}),
+						),
+					);
+				}
+				const envConfig = yield* decodeJarvisEnvironment(yield* environment.entries).pipe(
+					Effect.mapError(
+						(cause) => new HarnessError({ message: "Legacy Jarvis environment failed schema validation", cause }),
+					),
+				);
+				const merged = yield* mergeJarvisLegacyConfig(fileConfig, envConfig).pipe(
+					Effect.mapError(
+						(cause) =>
+							new HarnessError({
+								message: "Merged legacy Jarvis configuration failed schema validation",
+								cause,
+							}),
+					),
+				);
+				return yield* resolveJarvisConfig(merged);
+			});
+
+			return { inspectLegacy, loadResolved };
 		}),
 	);
+
+	static readonly liveLayer = JarvisConfigReader.layer.pipe(Layer.provide(JarvisEnvironment.liveLayer));
 }
