@@ -116,11 +116,23 @@ export class ConnectorTransportError extends Schema.TaggedErrorClass<ConnectorTr
 	{ ...ConnectorErrorFields, retryable: Schema.Boolean, cause: Schema.optional(Schema.Defect()) },
 ) {}
 
-/** Credentials are missing, invalid, expired, or insufficient. */
+/** Credentials are missing, invalid, or expired. */
 export class ConnectorAuthError extends Schema.TaggedErrorClass<ConnectorAuthError>()("ConnectorAuthError", {
 	...ConnectorErrorFields,
 	status: Schema.optional(Schema.Int),
 }) {}
+
+/** Credentials are valid but do not authorize the requested resource or operation. */
+export class ConnectorAuthorizationError extends Schema.TaggedErrorClass<ConnectorAuthorizationError>()(
+	"ConnectorAuthorizationError",
+	{ ...ConnectorErrorFields, status: Schema.optional(Schema.Int) },
+) {}
+
+/** Caller input or backend configuration is invalid. */
+export class ConnectorValidationError extends Schema.TaggedErrorClass<ConnectorValidationError>()(
+	"ConnectorValidationError",
+	{ ...ConnectorErrorFields, field: Schema.optional(Schema.String), status: Schema.optional(Schema.Int) },
+) {}
 
 /** The backend response did not satisfy the semantic data contract. */
 export class ConnectorDataError extends Schema.TaggedErrorClass<ConnectorDataError>()("ConnectorDataError", {
@@ -153,6 +165,8 @@ export class ConnectorMutationDisabledError extends Schema.TaggedErrorClass<Conn
 export type ConnectorReadError =
 	| ConnectorTransportError
 	| ConnectorAuthError
+	| ConnectorAuthorizationError
+	| ConnectorValidationError
 	| ConnectorDataError
 	| ConnectorRateLimitError
 	| ConnectorNotFoundError

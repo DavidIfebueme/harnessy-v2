@@ -71,12 +71,14 @@ export {
 export type { ConnectorReadError, DisabledMutation } from "./connectors/knowledge.ts";
 export {
 	ConnectorAuthError,
+	ConnectorAuthorizationError,
 	ConnectorDataError,
 	ConnectorMutationDisabledError,
 	ConnectorNotFoundError,
 	ConnectorRateLimitError,
 	ConnectorTransportError,
 	ConnectorUnsupportedCapabilityError,
+	ConnectorValidationError,
 	CreateCollectionRequest,
 	CreateJournalEntryRequest,
 	CreateTagRequest,
@@ -112,6 +114,15 @@ export {
 	UpdateTaskRequest,
 	UploadFileRequest,
 } from "./connectors/knowledge.ts";
+export {
+	NOTION_API_VERSION,
+	NOTION_DEFAULT_BASE_URL,
+	NOTION_DEFAULT_TIMEOUT_MS,
+	NOTION_MAX_ATTEMPTS,
+	NOTION_MAX_PAGES,
+	NotionConfig,
+	notionKnowledgeLayer,
+} from "./connectors/notion.ts";
 export { HARNESSY_VERSION } from "./constants.ts";
 export { HarnessError } from "./errors.ts";
 export { JarvisConfigInspection, JarvisConfigReader, JarvisConfigStatus } from "./jarvis/config.ts";

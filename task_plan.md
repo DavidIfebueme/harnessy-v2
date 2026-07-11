@@ -30,7 +30,7 @@ Python shim removed only after verified parity
 - [x] **CLI ownership:** expose migrated capabilities through `hsy`; do not create or retain a standalone `jarvis` binary.
 - [x] **Agent surface:** preserve domain capabilities without reproducing the approximately 89-command Click tree as tools. Use a small set of typed domain tools, user-invoked slash commands, and workflow skills as defined below.
 - [x] **Write policy:** defer approval, grant, and mutation-audit design to a dedicated GitHub issue. Create that issue as the first execution task; keep connector, outbound, publishing, bulk, and destructive writes disabled until its policy is adopted.
-- [x] **Notion transport:** prefer Notion's official hosted MCP for OAuth-delegated interactive access, with direct Effect HTTP as the headless/service and unsupported-operation fallback. Normalize both behind one Harnessy connector contract; never expose raw Notion MCP tools directly to the agent.
+- [x] **Notion transport:** use one private, version-pinned Effect HTTP connector for CLI, embedded, and headless reads. Defer hosted MCP and delegated OAuth until an interactive act-as-user requirement is demonstrated; never expose raw transport operations to the agent.
 - [x] **Daemon boundary:** run Fathom and WhatsApp receivers as separate deployable packages. Keep signature verification, normalization, inbox state, and connector contracts in shared core services; do not run persistent receivers inside the interactive `hsy` process.
 - [x] **Compatibility window:** use milestone-gated native-default, no-default-Python, and legacy-retirement releases. Preserve an offline, audited rollback path without a shared mutable dual-write period.
 
@@ -81,26 +81,24 @@ Until the issue is resolved and its policy is implemented:
 
 ### Notion connector transport
 
-Use one semantic Notion connector with two transports:
+Use one semantic Notion connector over a private Effect HTTP transport:
 
 ```text
 hsy domain service
     ↓ policy seam + idempotency/audit metadata seam
-Notion connector contract
-    ├─ Hosted Notion MCP — preferred OAuth-delegated interactive transport
-    └─ Direct Effect HTTP — headless/service and unsupported-operation fallback
+Harnessy Knowledge* contracts
+    ↓ private version-pinned transport
+Notion public HTTP API
 ```
 
-Hosted MCP requirements:
+- Authenticate with a redacted configured bearer credential.
+- Pin the Notion API version and decode responses through explicit Effect schemas.
+- Normalize configured workspace, task, journal, tag, object, and search reads into the shared contracts.
+- Keep pagination bounded, retry only typed retryable failures, honor server retry delays, and preserve interruption.
+- Keep raw HTTP operations private and every mutation blocked before transport pending #48.
+- Maintain deterministic offline fixtures for upstream REST payload and identifier evolution.
 
-- Connect to `https://mcp.notion.com/mcp` with Streamable HTTP.
-- Implement OAuth 2.0 with PKCE, token refresh, secure credential storage, expiry handling, and explicit reauthorization state.
-- Treat access tokens as short lived and refresh grants as revocable/expiring; never assume permanent authorization.
-- Discover capabilities and adapt semantic operations to current MCP schemas instead of exposing or hard-coding raw tool names.
-- Add drift tests that fail clearly when tool inputs/outputs or identifiers change, including database/data-source schema evolution.
-- Never let the agent call Notion MCP directly because that would bypass Harnessy connector contracts and the deferred policy seam.
-
-Direct Effect HTTP remains required for noninteractive/headless deployments, service credentials, unsupported MCP operations, deterministic low-level recovery, and compatibility where hosted MCP cannot satisfy the shared contract. Notion's local MCP bearer-token mode is not a primary target because it is not the actively supported path and may be retired.
+Hosted MCP, OAuth 2.0/PKCE, refresh-token storage, and live MCP drift probes are deferred. They should be added only if delegated interactive act-as-user access becomes an approved requirement that the HTTP connector cannot satisfy.
 
 ### Channel daemon packages
 
@@ -164,15 +162,15 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 - [x] Replace the Python 23-method `KnowledgeBaseAdapter` with focused Effect services instead of one oversized interface.
 - [x] Separate connection/capability discovery, spaces, tasks, journal, tags, objects, collections, and files.
 - [ ] Expand the current read-only AnyType connector to required CRUD and sync operations.
-- [ ] Implement the Notion connector with hosted MCP as the preferred OAuth-delegated interactive transport and direct Effect HTTP as the headless/service and unsupported-operation fallback.
-- [ ] Normalize MCP and HTTP behind the same semantic operations, property mapping, capability discovery, typed failures, and policy/idempotency/audit metadata seam.
-- [ ] Implement OAuth 2.0 + PKCE, refresh, secure token storage, expiry/reauthorization state, and revocation handling for hosted MCP.
+- [x] Implement the private, version-pinned Notion Effect HTTP read connector for CLI, embedded, and headless consumers.
+- [x] Normalize Notion HTTP behind the same semantic operations, property mapping, capability discovery, typed failures, and policy/idempotency/audit metadata seam.
+- [x] Defer hosted MCP and OAuth 2.0 + PKCE until delegated interactive act-as-user access is an approved requirement.
 - [ ] Port retry behavior with `Schedule`, typed retryability, server-provided retry delays, and cancellation.
-- [ ] Add contract suites that every backend layer and both Notion transports must pass.
-- [ ] Add MCP discovery/schema-drift tests that detect changed tools, inputs, outputs, and identifier conventions without hard-coding today's tool names.
+- [ ] Add contract suites that every backend layer and the Notion HTTP connector must pass.
+- [ ] Add Notion REST fixture drift tests for page, database/data-source, block, pagination, and identifier evolution.
 - [x] Keep all mutation methods disabled until the deferred authorization/audit issue is resolved and implemented.
 
-**Exit gate:** AnyType and both Notion transports pass the same read contract for supported capabilities; unsupported capabilities fail with typed evidence, MCP schema drift is detected, and no write bypass exists.
+**Exit gate:** AnyType and Notion HTTP pass the same read contract for supported capabilities; unsupported capabilities fail with typed evidence, REST payload drift is detected, and no write bypass exists.
 
 ## Phase 3 — Core personal-agent workflows
 
@@ -244,7 +242,7 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 
 - [ ] Specific Effect tests for every new service and pure transformation.
 - [ ] Contract tests for backend implementations and transport-independent Notion semantics.
-- [ ] Notion MCP discovery/schema-drift tests with recorded schemas and an opt-in live compatibility probe.
+- [ ] Notion REST payload/schema-drift tests with recorded fixtures; no live credentials in default tests.
 - [ ] Golden tests generated from Python fixtures, never live paid APIs.
 - [ ] Live opt-in integration profiles for local AnyType and sandbox connector accounts.
 - [ ] Fault injection for malformed state, timeouts, retries, partial writes, duplicate webhooks, cancellation, and process restart.
