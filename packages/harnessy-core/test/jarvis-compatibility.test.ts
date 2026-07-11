@@ -12,13 +12,18 @@ import { Command } from "effect/unstable/cli";
 
 import { rootCommand } from "../src/commands.ts";
 import { HARNESSY_VERSION } from "../src/constants.ts";
-import { JarvisContextLoader } from "../src/jarvis/context.ts";
+import { JARVIS_CONTEXT_FILES, JarvisContextLoader } from "../src/jarvis/context.ts";
 import { JarvisDiagnostic } from "../src/jarvis/diagnostic.ts";
 import {
+	JarvisParityEntry,
+	JarvisParityManifest,
 	parseJarvisCommandManifest,
 	parseJarvisParityManifest,
 	parseJarvisStateManifest,
+	summarizeJarvisParity,
+	validateJarvisParity,
 } from "../src/jarvis/parity.ts";
+import { JarvisParityReporter } from "../src/jarvis/parity-report.ts";
 import { JarvisPathResolver, JarvisRuntimeRoots } from "../src/jarvis/paths.ts";
 import { HarnessProject } from "../src/operations.ts";
 
@@ -36,6 +41,12 @@ describe("Jarvis compatibility kernel", () => {
 				yield* fs.readFileString("fixtures/jarvis-v1/state-manifest.json"),
 				"state-manifest.json",
 			);
+			const parityManifest = yield* parseJarvisParityManifest(
+				yield* fs.readFileString("fixtures/jarvis-v1/parity-manifest.json"),
+				"parity-manifest.json",
+			);
+			yield* validateJarvisParity(parityManifest, commandManifest, stateManifest);
+			const summary = yield* summarizeJarvisParity(parityManifest);
 			const paths = commandManifest.commands.map((entry) => entry.path.join(" "));
 
 			expect(commandManifest.commands).toHaveLength(131);
@@ -57,6 +68,22 @@ describe("Jarvis compatibility kernel", () => {
 			expect(paths).toContain("jarvis sync run");
 			expect(stateManifest.stores.map((store) => store.id)).toContain("pending-suggestions-json-v1");
 			expect(stateManifest.stores.map((store) => store.id)).toContain("sync-state-json-v1");
+			expect(parityManifest.entries).toHaveLength(171);
+			expect(summary.counts.total).toBe(171);
+			expect(summary.surfaces.find((surface) => surface.surface === "command")?.counts.total).toBe(131);
+			expect(summary.surfaces.find((surface) => surface.surface === "state")?.counts.total).toBe(14);
+			expect(
+				parityManifest.entries
+					.filter((entry) => entry.surface === "context")
+					.map((entry) => entry.legacyReference)
+					.sort(),
+			).toEqual([...JARVIS_CONTEXT_FILES].sort());
+			expect(parityManifest.entries.find((entry) => entry.legacyReference === "jarvis content")?.status).toBe(
+				"missing",
+			);
+			expect(parityManifest.entries.find((entry) => entry.legacyReference === "jarvis w")?.status).toBe(
+				"intentionally-retired",
+			);
 
 			for (const store of stateManifest.stores) {
 				if (store.fixture !== undefined) {
@@ -229,6 +256,7 @@ describe("Jarvis compatibility kernel", () => {
 				yield* run(["jarvis", "diagnose", "--json", "--target", target]).pipe(
 					Effect.provide(HarnessProject.layer),
 					Effect.provide(JarvisDiagnostic.liveLayer),
+					Effect.provide(JarvisParityReporter.layer),
 					Effect.provide(JarvisRuntimeRoots.testLayer(home)),
 				);
 				const logs = yield* TestConsole.logLines;
@@ -248,6 +276,29 @@ describe("Jarvis compatibility kernel", () => {
 		).pipe(Effect.provide(NodeServices.layer), Effect.provide(TestConsole.layer)),
 	);
 
+	it.live("reports the validated parity dashboard through the read-only CLI", () =>
+		Effect.gen(function* () {
+			const run = Command.runWith(rootCommand, { version: HARNESSY_VERSION });
+			yield* run(["jarvis", "parity", "--json"]).pipe(
+				Effect.provide(HarnessProject.layer),
+				Effect.provide(JarvisDiagnostic.liveLayer),
+				Effect.provide(JarvisParityReporter.layer),
+				Effect.provide(JarvisRuntimeRoots.testLayer("/unused-home")),
+			);
+			const jsonLog = (yield* TestConsole.logLines).find(
+				(logged): logged is string => typeof logged === "string" && logged.includes('"command": "jarvis parity"'),
+			);
+			if (jsonLog === undefined) throw new Error("jarvis parity --json did not emit structured output");
+			const output = JSON.parse(jsonLog) as {
+				readonly ok: boolean;
+				readonly summary: { readonly counts: { readonly total: number; readonly compatible: number } };
+			};
+			expect(output.ok).toBe(true);
+			expect(output.summary.counts.total).toBe(171);
+			expect(output.summary.counts.compatible).toBeGreaterThan(0);
+		}).pipe(Effect.provide(NodeServices.layer), Effect.provide(TestConsole.layer)),
+	);
+
 	it.live("never exposes malformed YAML source lines in JSON or text diagnostics", () =>
 		Effect.scoped(
 			Effect.gen(function* () {
@@ -265,6 +316,7 @@ describe("Jarvis compatibility kernel", () => {
 					effect.pipe(
 						Effect.provide(HarnessProject.layer),
 						Effect.provide(JarvisDiagnostic.liveLayer),
+						Effect.provide(JarvisParityReporter.layer),
 						Effect.provide(JarvisRuntimeRoots.testLayer(home)),
 					);
 				yield* provide(run(["jarvis", "diagnose", "--json", "--target", target]));
@@ -275,6 +327,41 @@ describe("Jarvis compatibility kernel", () => {
 				expect(output).not.toContain("should-not-appear");
 			}),
 		).pipe(Effect.provide(NodeServices.layer), Effect.provide(TestConsole.layer)),
+	);
+
+	it.effect("rejects incomplete or duplicate parity ledgers", () =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const commands = yield* parseJarvisCommandManifest(
+				yield* fs.readFileString("fixtures/jarvis-v1/command-manifest.json"),
+				"command-manifest.json",
+			);
+			const state = yield* parseJarvisStateManifest(
+				yield* fs.readFileString("fixtures/jarvis-v1/state-manifest.json"),
+				"state-manifest.json",
+			);
+			const parity = yield* parseJarvisParityManifest(
+				yield* fs.readFileString("fixtures/jarvis-v1/parity-manifest.json"),
+				"parity-manifest.json",
+			);
+			const first = parity.entries.find((entry) => entry.surface === "command");
+			if (first === undefined) throw new Error("Expected a command parity fixture");
+			const duplicateReference = new JarvisParityEntry({
+				...first,
+				id: `${first.id}:conflict`,
+				status: first.status === "missing" ? "partial" : "missing",
+			});
+			const invalid = new JarvisParityManifest({
+				schemaVersion: 1,
+				sourceVersion: parity.sourceVersion,
+				entries: [first, ...parity.entries.filter((entry) => entry.surface !== "state"), duplicateReference, first],
+			});
+			const error = yield* validateJarvisParity(invalid, commands, state).pipe(Effect.flip);
+			expect(error.issues).toContain(`Duplicate parity id: ${first.id}`);
+			expect(error.issues).toContain(`Duplicate ${first.surface} parity reference: ${first.legacyReference}`);
+			expect(error.issues).toContain(`Parity id ${duplicateReference.id} must be ${first.id}`);
+			expect(error.issues).toContain("Missing state parity entry: legacy-config-yaml-v1");
+		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
 	it.effect("validates the parity manifest contract", () =>

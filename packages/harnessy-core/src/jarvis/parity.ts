@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import * as Effect from "effect/Effect";
 
 import { causeMessage, HarnessError } from "../errors.ts";
+import { JARVIS_CONTEXT_FILES } from "./context.ts";
 
 export const JarvisParityStatus = Schema.Literals(["missing", "partial", "compatible", "intentionally-retired"]);
 export type JarvisParityStatus = typeof JarvisParityStatus.Type;
@@ -32,6 +33,31 @@ export class JarvisParityManifest extends Schema.Class<JarvisParityManifest>("Ja
 	schemaVersion: Schema.Literal(1),
 	sourceVersion: Schema.String,
 	entries: Schema.Array(JarvisParityEntry),
+}) {}
+
+export class JarvisParityValidationError extends Schema.TaggedErrorClass<JarvisParityValidationError>()(
+	"JarvisParityValidationError",
+	{
+		issues: Schema.Array(Schema.String),
+	},
+) {}
+
+export class JarvisParityCounts extends Schema.Class<JarvisParityCounts>("JarvisParityCounts")({
+	total: Schema.Int,
+	missing: Schema.Int,
+	partial: Schema.Int,
+	compatible: Schema.Int,
+	intentionallyRetired: Schema.Int,
+}) {}
+
+export class JarvisParitySurfaceSummary extends Schema.Class<JarvisParitySurfaceSummary>("JarvisParitySurfaceSummary")({
+	surface: JarvisProtocolSurface,
+	counts: JarvisParityCounts,
+}) {}
+
+export class JarvisParitySummary extends Schema.Class<JarvisParitySummary>("JarvisParitySummary")({
+	counts: JarvisParityCounts,
+	surfaces: Schema.Array(JarvisParitySurfaceSummary),
 }) {}
 
 export class JarvisCommandArgument extends Schema.Class<JarvisCommandArgument>("JarvisCommandArgument")({
@@ -142,4 +168,95 @@ export const parseJarvisParityManifest = Effect.fn("JarvisParityManifest.parse")
 				}),
 		),
 	);
+});
+
+const parityCounts = (entries: ReadonlyArray<JarvisParityEntry>) =>
+	new JarvisParityCounts({
+		total: entries.length,
+		missing: entries.filter((entry) => entry.status === "missing").length,
+		partial: entries.filter((entry) => entry.status === "partial").length,
+		compatible: entries.filter((entry) => entry.status === "compatible").length,
+		intentionallyRetired: entries.filter((entry) => entry.status === "intentionally-retired").length,
+	});
+
+export const summarizeJarvisParity = Effect.fn("JarvisParityManifest.summarize")((manifest: JarvisParityManifest) => {
+	const surfaces = JarvisProtocolSurface.literals.map(
+		(surface) =>
+			new JarvisParitySurfaceSummary({
+				surface,
+				counts: parityCounts(manifest.entries.filter((entry) => entry.surface === surface)),
+			}),
+	);
+	return Effect.succeed(new JarvisParitySummary({ counts: parityCounts(manifest.entries), surfaces }));
+});
+
+export const validateJarvisParity = Effect.fn("JarvisParityManifest.validate")(function* (
+	manifest: JarvisParityManifest,
+	commands: JarvisCommandManifest,
+	state: JarvisStateManifest,
+) {
+	const issues: Array<string> = [];
+	const ids = new Set<string>();
+	for (const entry of manifest.entries) {
+		if (ids.has(entry.id)) issues.push(`Duplicate parity id: ${entry.id}`);
+		ids.add(entry.id);
+		if (!entry.id.startsWith(`${entry.surface}:`)) {
+			issues.push(`Parity id ${entry.id} does not match surface ${entry.surface}`);
+		}
+		if (
+			entry.status === "intentionally-retired" &&
+			entry.replacement === undefined &&
+			entry.rationale === undefined
+		) {
+			issues.push(`Retired parity entry ${entry.id} requires a replacement or rationale`);
+		}
+	}
+	const sortedIds = [...ids].sort();
+	if (manifest.entries.some((entry, index) => entry.id !== sortedIds[index])) {
+		issues.push("Parity entries must be sorted by id");
+	}
+	if (manifest.sourceVersion !== commands.source.version) {
+		issues.push(
+			`Parity source version ${manifest.sourceVersion} does not match command oracle ${commands.source.version}`,
+		);
+	}
+
+	const validateOracleSurface = (
+		surface: "command" | "state" | "context",
+		expectedEntries: ReadonlyArray<readonly [reference: string, id: string]>,
+	) => {
+		const expected = new Map(expectedEntries);
+		const seen = new Set<string>();
+		for (const entry of manifest.entries.filter((candidate) => candidate.surface === surface)) {
+			if (seen.has(entry.legacyReference)) {
+				issues.push(`Duplicate ${surface} parity reference: ${entry.legacyReference}`);
+			}
+			seen.add(entry.legacyReference);
+			const expectedId = expected.get(entry.legacyReference);
+			if (expectedId === undefined) {
+				issues.push(`Orphaned ${surface} parity entry: ${entry.legacyReference}`);
+			} else if (entry.id !== expectedId) {
+				issues.push(`Parity id ${entry.id} must be ${expectedId}`);
+			}
+		}
+		for (const reference of expected.keys()) {
+			if (!seen.has(reference)) issues.push(`Missing ${surface} parity entry: ${reference}`);
+		}
+	};
+
+	validateOracleSurface(
+		"command",
+		commands.commands.map((entry) => [entry.path.join(" "), `command:${entry.path.join(":")}`] as const),
+	);
+	validateOracleSurface(
+		"state",
+		state.stores.map((store) => [store.id, `state:${store.id}`] as const),
+	);
+	validateOracleSurface(
+		"context",
+		JARVIS_CONTEXT_FILES.map((file) => [file, `context:${file}`] as const),
+	);
+
+	if (issues.length > 0) yield* new JarvisParityValidationError({ issues: issues.sort() });
+	return manifest;
 });

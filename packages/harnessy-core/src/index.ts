@@ -80,9 +80,13 @@ export {
 	JarvisCommandOption,
 	JarvisMalformedBehavior,
 	JarvisMissingBehavior,
+	JarvisParityCounts,
 	JarvisParityEntry,
 	JarvisParityManifest,
 	JarvisParityStatus,
+	JarvisParitySummary,
+	JarvisParitySurfaceSummary,
+	JarvisParityValidationError,
 	JarvisProtocolSurface,
 	JarvisStateFormat,
 	JarvisStateManifest,
@@ -90,7 +94,10 @@ export {
 	parseJarvisCommandManifest,
 	parseJarvisParityManifest,
 	parseJarvisStateManifest,
+	summarizeJarvisParity,
+	validateJarvisParity,
 } from "./jarvis/parity.ts";
+export { JarvisParityReport, JarvisParityReporter } from "./jarvis/parity-report.ts";
 export { JarvisPathResolver, JarvisPaths, JarvisRuntimeRoots } from "./jarvis/paths.ts";
 export type {
 	DoctorResult,
