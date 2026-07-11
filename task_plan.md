@@ -161,8 +161,8 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 
 ## Phase 2 — Knowledge backend contract
 
-- [ ] Replace the Python 23-method `KnowledgeBaseAdapter` with focused Effect services instead of one oversized interface.
-- [ ] Separate connection/capability discovery, spaces, tasks, journal, tags, objects, collections, and files.
+- [x] Replace the Python 23-method `KnowledgeBaseAdapter` with focused Effect services instead of one oversized interface.
+- [x] Separate connection/capability discovery, spaces, tasks, journal, tags, objects, collections, and files.
 - [ ] Expand the current read-only AnyType connector to required CRUD and sync operations.
 - [ ] Implement the Notion connector with hosted MCP as the preferred OAuth-delegated interactive transport and direct Effect HTTP as the headless/service and unsupported-operation fallback.
 - [ ] Normalize MCP and HTTP behind the same semantic operations, property mapping, capability discovery, typed failures, and policy/idempotency/audit metadata seam.
@@ -170,7 +170,7 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 - [ ] Port retry behavior with `Schedule`, typed retryability, server-provided retry delays, and cancellation.
 - [ ] Add contract suites that every backend layer and both Notion transports must pass.
 - [ ] Add MCP discovery/schema-drift tests that detect changed tools, inputs, outputs, and identifier conventions without hard-coding today's tool names.
-- [ ] Keep all mutation methods disabled until the deferred authorization/audit issue is resolved and implemented.
+- [x] Keep all mutation methods disabled until the deferred authorization/audit issue is resolved and implemented.
 
 **Exit gate:** AnyType and both Notion transports pass the same read contract for supported capabilities; unsupported capabilities fail with typed evidence, MCP schema drift is detected, and no write bypass exists.
 

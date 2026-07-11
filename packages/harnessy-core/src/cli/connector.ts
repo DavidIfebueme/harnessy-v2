@@ -6,7 +6,8 @@ import * as Option from "effect/Option";
 import { Command } from "effect/unstable/cli";
 import { FetchHttpClient } from "effect/unstable/http";
 
-import { ANYTYPE_DEFAULT_BASE_URL, AnytypeConfig, AnytypeConnector } from "../connectors/anytype.ts";
+import { ANYTYPE_DEFAULT_BASE_URL, AnytypeConfig, anytypeKnowledgeLayer } from "../connectors/anytype.ts";
+import { KnowledgeObjects, KnowledgeSpaces } from "../connectors/knowledge.ts";
 import { HarnessError } from "../errors.ts";
 
 import {
@@ -37,9 +38,9 @@ export const resolveAnytype = (
 	allowRemote,
 });
 
-/** Provide the connector, its config, and a live HTTP client to a connector effect. */
+/** Provide the focused knowledge services, config, and live HTTP client to an AnyType read effect. */
 export const provideAnytype = <A, E>(
-	effect: Effect.Effect<A, E, AnytypeConnector>,
+	effect: Effect.Effect<A, E, KnowledgeSpaces | KnowledgeObjects>,
 	settings: { readonly apiKey: string; readonly baseUrl: string; readonly allowRemote: boolean },
 ) =>
 	Effect.gen(function* () {
@@ -56,7 +57,7 @@ export const provideAnytype = <A, E>(
 		}
 		return yield* effect;
 	}).pipe(
-		Effect.provide(AnytypeConnector.layer),
+		Effect.provide(anytypeKnowledgeLayer),
 		Effect.provide(AnytypeConfig.layer({ baseUrl: settings.baseUrl, apiKey: settings.apiKey })),
 		Effect.provide(FetchHttpClient.layer),
 	);
@@ -72,7 +73,7 @@ export const anytypeSpacesCommand = Command.make(
 	({ apiKey, anytypeUrl, allowRemote, json }) =>
 		provideAnytype(
 			Effect.gen(function* () {
-				const spaces = yield* (yield* AnytypeConnector).listSpaces();
+				const spaces = yield* (yield* KnowledgeSpaces).list();
 				if (json) {
 					yield* Console.log(JSON.stringify(spaces, null, 2));
 					return;
@@ -98,7 +99,7 @@ export const anytypeSearchCommand = Command.make(
 	({ space, query, apiKey, anytypeUrl, allowRemote, json }) =>
 		provideAnytype(
 			Effect.gen(function* () {
-				const results = yield* (yield* AnytypeConnector).search(space, query);
+				const results = yield* (yield* KnowledgeObjects).search(space, query);
 				if (json) {
 					yield* Console.log(JSON.stringify(results, null, 2));
 					return;
@@ -124,7 +125,7 @@ export const anytypeGetCommand = Command.make(
 	({ space, objectId, apiKey, anytypeUrl, allowRemote, json }) =>
 		provideAnytype(
 			Effect.gen(function* () {
-				const object = yield* (yield* AnytypeConnector).getObject(space, objectId);
+				const object = yield* (yield* KnowledgeObjects).get(space, objectId);
 				yield* Console.log(
 					json ? JSON.stringify(object, null, 2) : (object.markdown ?? object.snippet ?? object.name ?? ""),
 				);
