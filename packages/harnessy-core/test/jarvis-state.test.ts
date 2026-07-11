@@ -123,6 +123,7 @@ describe("Jarvis legacy state readiness", () => {
 					yield* fs.writeFileString(destination, fixture(source));
 				}
 				yield* fs.writeFileString(path.join(global, "wikis", "example", "README.md"), "# Wiki\n");
+				yield* fs.writeFileString(path.join(global, "wikis", "example", "index.md"), "");
 				yield* fs.makeDirectory(path.join(global, "wikis", "example", ".state"), { recursive: true });
 				yield* fs.writeFileString(path.join(global, "wikis", "example", ".state", "manifest.json"), "{}\n");
 				yield* fs.makeDirectory(
@@ -144,7 +145,7 @@ describe("Jarvis legacy state readiness", () => {
 				expect(result.stores).toHaveLength(20);
 				expect(result.counts.readable).toBe(20);
 				expect(result.overall).toBe("safe-to-import");
-				expect(result.stores.find((store) => store.storeId === "wiki-domain-v1")?.entriesRead).toBe(3);
+				expect(result.stores.find((store) => store.storeId === "wiki-domain-v1")?.entriesRead).toBe(4);
 				expect(result.stores.find((store) => store.storeId === "whatsapp-inbox-json-v1")?.entriesRead).toBe(1);
 				expect(snapshot(root)).toEqual(before);
 			}),

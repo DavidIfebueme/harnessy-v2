@@ -559,20 +559,20 @@ export class JarvisStateReader extends Context.Service<
 				candidate: string,
 				raw: string,
 			) {
-				if (raw.trim().length === 0) return false;
 				if (spec.format === "text" || spec.format === "markdown" || spec.format === "markdown-directory")
 					return true;
+				if (
+					spec.format === "yaml-markdown-json-directory" &&
+					(candidate.endsWith(".md") || candidate.endsWith(".markdown"))
+				)
+					return true;
+				if (raw.trim().length === 0) return false;
 				if (spec.format === "yaml-markdown-json-directory" && candidate.endsWith(".json")) {
 					return yield* Schema.decodeUnknownEffect(JsonUnknown)(raw).pipe(
 						Effect.as(true),
 						Effect.catch(() => Effect.succeed(false)),
 					);
 				}
-				if (
-					spec.format === "yaml-markdown-json-directory" &&
-					(candidate.endsWith(".md") || candidate.endsWith(".markdown"))
-				)
-					return true;
 				if (spec.format === "yaml" || spec.format === "yaml-markdown-json-directory") {
 					const document = parseDocument(raw);
 					if (document.errors.length > 0) return false;
