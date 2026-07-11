@@ -1,10 +1,13 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import process from "node:process";
 import type { ExtensionContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { Effect } from "effect";
+import { HSY_APP_TITLE as APP_TITLE, HSY_CONFIG_DIR as CONFIG_DIR_NAME } from "./hsy-runtime-env.ts";
 
-const APP_TITLE = "Harnessy";
-const CONFIG_DIR_NAME = ".hsy";
+const RUNTIME_CONTEXT_TYPE = "harnessy-runtime-context";
+export const DEFAULT_HSY_AGENT_NAME = "Jarvis";
 
 const APP_LOGO = [
 	"██ ██ ████       ",
@@ -240,6 +243,71 @@ function renderWelcome(data: WelcomeData, terminalWidth: number): string[] {
 	return lines;
 }
 
+function normalizeAgentName(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const name = value.trim();
+	return name && name.length <= 80 && !/[\r\n]/.test(name) ? name : undefined;
+}
+
+export function resolveHarnessyAgentName(env: NodeJS.ProcessEnv = process.env): string {
+	const environmentName = normalizeAgentName(env.HSY_AGENT_NAME);
+	if (environmentName) return environmentName;
+
+	const agentDir = env.HSY_CODING_AGENT_DIR?.trim() || join(homedir(), CONFIG_DIR_NAME, "agent");
+	const settings = Effect.runSync(
+		Effect.try({
+			try: () => JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")) as unknown,
+			catch: () => undefined,
+		}).pipe(Effect.catch(() => Effect.succeed(undefined))),
+	);
+	if (typeof settings === "object" && settings !== null && "agentName" in settings) {
+		return normalizeAgentName(settings.agentName) ?? DEFAULT_HSY_AGENT_NAME;
+	}
+
+	return DEFAULT_HSY_AGENT_NAME;
+}
+
+export function buildHarnessyRuntimeContext(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
+	const agentDir = env.HSY_CODING_AGENT_DIR?.trim() || join(homedir(), CONFIG_DIR_NAME, "agent");
+	const projectConfigDir = join(cwd, CONFIG_DIR_NAME);
+	const agentName = resolveHarnessyAgentName(env);
+
+	return `<harnessy_runtime>
+You are running inside Harnessy (hsy), not the pi executable.
+Your agent name is ${JSON.stringify(agentName)}.
+Canonical global agent directory: ${JSON.stringify(agentDir)}
+Canonical project configuration directory: ${JSON.stringify(projectConfigDir)}
+PI_CODING_AGENT_DIR and other PI_* identity variables are legacy compatibility aliases for this Harnessy runtime. They do not authorize access to Pi's ~/.pi state.
+
+Host isolation invariant:
+- Read and write Harnessy state only under the canonical directories above.
+- Do not invoke the pi executable or automatically read, write, install into, or migrate state from ~/.pi or a project-local .pi directory.
+- Package names and imports containing "pi" are valid compatibility APIs; filesystem paths targeting .pi are compatibility defects unless the user explicitly requested Pi-state inspection or migration.
+
+Self-healing rule:
+When an extension, package, command, or configuration fails because it assumes Pi-specific paths or identity, inspect the failing Harnessy-local resource, repair it to use HSY_CODING_AGENT_DIR, PI_CODING_AGENT_DIR, PI_CONFIG_DIR, or the canonical .hsy project directory as appropriate, then verify the operation again. Keep the repair scoped to Harnessy; never patch or share Pi's configuration. If a safe local repair is impossible, report the exact incompatible path and package instead of silently falling back to ~/.pi.
+</harnessy_runtime>`;
+}
+
+export function createHarnessyRuntimeContextMessage(cwd: string, env: NodeJS.ProcessEnv = process.env) {
+	return {
+		customType: RUNTIME_CONTEXT_TYPE,
+		content: buildHarnessyRuntimeContext(cwd, env),
+		display: false,
+	};
+}
+
+function sessionHasHarnessyRuntimeContext(ctx: ExtensionContext): boolean {
+	return ctx.sessionManager
+		.getBranch()
+		.some(
+			(entry) =>
+				entry.type === "message" &&
+				entry.message.role === "custom" &&
+				entry.message.customType === RUNTIME_CONTEXT_TYPE,
+		);
+}
+
 function setHarnessyHeader(ctx: ExtensionContext): void {
 	const data: WelcomeData = {
 		modelName: ctx.model?.name ?? ctx.model?.id ?? "No model",
@@ -258,8 +326,11 @@ function setHarnessyHeader(ctx: ExtensionContext): void {
 
 export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 	pi.on("session_start", (event, ctx) => {
-		if (!ctx.hasUI) return;
-		if (event.reason === "startup" || event.reason === "reload") {
+		if (!sessionHasHarnessyRuntimeContext(ctx)) {
+			pi.sendMessage(createHarnessyRuntimeContextMessage(ctx.cwd), { triggerTurn: false });
+		}
+
+		if (ctx.hasUI && (event.reason === "startup" || event.reason === "reload")) {
 			setHarnessyHeader(ctx);
 		}
 	});
