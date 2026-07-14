@@ -37,13 +37,13 @@
     "typecheck:slow": "tsc --noEmit"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.85"
+    "effect": "catalog:"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-beta.85",
-    "@effect/vitest": "4.0.0-beta.85",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.5"
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

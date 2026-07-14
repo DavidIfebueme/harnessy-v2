@@ -23,23 +23,23 @@
     "typecheck:slow": "tsc --noEmit"
   },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0-beta.85",
+    "@effect/platform-bun": "catalog:",
     "@executor-js/api": "workspace:*",
     "@executor-js/integrations-registry": "workspace:*",
     "@executor-js/local": "workspace:*",
     "@executor-js/runtime-quickjs": "workspace:*",
     "@executor-js/sdk": "workspace:*",
-    "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+    "@jitl/quickjs-wasmfile-release-sync": "catalog:",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sentry/bun": "^10.57.0",
-    "effect": "4.0.0-beta.85",
-    "quickjs-emscripten": "^0.31.0"
+    "effect": "catalog:",
+    "quickjs-emscripten": "catalog:"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-beta.85",
-    "@types/node": "^24.3.1",
-    "bun-types": "^1.2.22",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.5"
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "bun-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

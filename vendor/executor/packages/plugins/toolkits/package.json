@@ -53,31 +53,31 @@
     "@executor-js/sdk": "workspace:*"
   },
   "devDependencies": {
-    "@effect/atom-react": "4.0.0-beta.85",
-    "@effect/vitest": "4.0.0-beta.85",
+    "@effect/atom-react": "catalog:",
+    "@effect/vitest": "catalog:",
     "@executor-js/api": "workspace:*",
     "@executor-js/react": "workspace:*",
-    "@tanstack/react-router": "^1.168.10",
-    "@types/node": "^24.3.1",
-    "@types/react": "^19.1.0",
-    "bun-types": "^1.2.22",
-    "effect": "4.0.0-beta.85",
+    "@tanstack/react-router": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "bun-types": "catalog:",
+    "effect": "catalog:",
     "fractional-indexing": "^3.2.0",
     "lucide-react": "^1.7.0",
-    "react": "^19.1.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.5"
+    "react": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@effect/atom-react": "4.0.0-beta.85",
+    "@effect/atom-react": "catalog:",
     "@executor-js/api": "workspace:*",
     "@executor-js/react": "workspace:*",
-    "@tanstack/react-router": "^1.168.10",
-    "effect": "4.0.0-beta.85",
+    "@tanstack/react-router": "catalog:",
+    "effect": "catalog:",
     "fractional-indexing": "^3.2.0",
     "lucide-react": "^1.7.0",
-    "react": "^19.1.0"
+    "react": "catalog:"
   },
   "peerDependenciesMeta": {
     "@effect/atom-react": {

@@ -100,24 +100,24 @@
     "tldts": "^7.0.28"
   },
   "devDependencies": {
-    "@effect/atom-react": "4.0.0-beta.85",
-    "@effect/platform-node": "4.0.0-beta.85",
-    "@effect/vitest": "4.0.0-beta.85",
-    "@libsql/client": "^0.17.3",
-    "@types/node": "^24.3.1",
-    "@types/react": "^19.1.0",
-    "drizzle-orm": "^0.45.0",
-    "effect": "4.0.0-beta.85",
-    "react": "^19.1.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.5"
+    "@effect/atom-react": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@libsql/client": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "react": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@effect/atom-react": "4.0.0-beta.85",
-    "@effect/platform-node": "4.0.0-beta.85",
-    "effect": "4.0.0-beta.85",
-    "react": "^19.1.0"
+    "@effect/atom-react": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "effect": "catalog:",
+    "react": "catalog:"
   },
   "peerDependenciesMeta": {
     "@effect/platform-node": {

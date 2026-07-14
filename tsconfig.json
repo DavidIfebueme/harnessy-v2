@@ -4,6 +4,24 @@
 		"noEmit": true,
 		"paths": {
 			"*": ["./*"],
+			"@executor-js/fumadb": ["./vendor/executor/packages/core/fumadb/src/index.ts"],
+			"@executor-js/fumadb/adapters/drizzle": [
+				"./vendor/executor/packages/core/fumadb/src/adapters/drizzle/index.ts"
+			],
+			"@executor-js/fumadb/adapters/memory": [
+				"./vendor/executor/packages/core/fumadb/src/adapters/memory/index.ts"
+			],
+			"@executor-js/fumadb/query": ["./vendor/executor/packages/core/fumadb/src/query/index.ts"],
+			"@executor-js/fumadb/schema": ["./vendor/executor/packages/core/fumadb/src/schema/index.ts"],
+			"@executor-js/integrations-registry": [
+				"./vendor/executor/packages/core/integrations-registry/src/index.ts"
+			],
+			"@executor-js/plugin-mcp": ["./vendor/executor/packages/plugins/mcp/src/sdk/index.ts"],
+			"@executor-js/plugin-openapi": ["./vendor/executor/packages/plugins/openapi/src/sdk/index.ts"],
+			"@executor-js/sdk": ["./vendor/executor/packages/core/sdk/src/index.ts"],
+			"@executor-js/sdk/core": ["./vendor/executor/packages/core/sdk/src/index.ts"],
+			"@executor-js/sdk/http-auth": ["./vendor/executor/packages/core/sdk/src/http-auth/index.ts"],
+			"@executor-js/sdk/shared": ["./vendor/executor/packages/core/sdk/src/shared.ts"],
 			"@earendil-works/pi-ai": ["./packages/ai/src/index.ts"],
 			"@earendil-works/pi-ai/oauth": ["./packages/ai/src/oauth.ts"],
 			"@earendil-works/pi-ai/*": ["./packages/ai/src/*.ts", "./packages/ai/src/providers/*.ts"],

@@ -61,32 +61,32 @@
     "typecheck:slow": "bunx tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.85",
+    "@effect/platform-node": "catalog:",
     "@executor-js/config": "workspace:*",
     "@executor-js/sdk": "workspace:*",
     "graphql": "^16.12.0",
     "graphql-yoga": "^5.17.0"
   },
   "devDependencies": {
-    "@effect/atom-react": "4.0.0-beta.85",
-    "@effect/vitest": "4.0.0-beta.85",
+    "@effect/atom-react": "catalog:",
+    "@effect/vitest": "catalog:",
     "@executor-js/api": "workspace:*",
     "@executor-js/react": "workspace:*",
-    "@types/node": "^24.3.1",
-    "@types/react": "^19.1.0",
-    "bun-types": "^1.2.22",
-    "effect": "4.0.0-beta.85",
-    "react": "^19.1.0",
-    "tsup": "^8.5.0",
-    "vitest": "^4.1.5"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "bun-types": "catalog:",
+    "effect": "catalog:",
+    "react": "catalog:",
+    "tsup": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@effect/atom-react": "4.0.0-beta.85",
+    "@effect/atom-react": "catalog:",
     "@executor-js/api": "workspace:*",
     "@executor-js/react": "workspace:*",
-    "@tanstack/react-router": "^1.168.10",
-    "effect": "4.0.0-beta.85",
-    "react": "^19.1.0"
+    "@tanstack/react-router": "catalog:",
+    "effect": "catalog:",
+    "react": "catalog:"
   },
   "peerDependenciesMeta": {
     "react": {

@@ -43,14 +43,14 @@
     "@executor-js/fumadb": "workspace:*",
     "@executor-js/sdk": "workspace:*",
     "commander": "^12.1.0",
-    "effect": "4.0.0-beta.85",
+    "effect": "catalog:",
     "jiti": "^2.6.1"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-beta.85",
-    "@types/node": "^24.3.1",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3",
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
     "vitest": "^4.1.4"
   }
 }

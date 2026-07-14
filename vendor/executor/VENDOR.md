@@ -3,7 +3,18 @@
 - Upstream: https://github.com/RhysSullivan/executor
 - Pinned commit: `0a50c796c2cc334cf3e9bf6d4be33c77dbfac93b` (`0a50c79`)
 - Vendored: 2026-07-14
-- License: MIT, preserved in [`LICENSE`](LICENSE)
+- License: MIT, preserved verbatim in [`LICENSE`](LICENSE)
+
+## Verbatim policy
+
+The taken upstream paths are byte-identical to the pinned commit. Do not rewrite dependency protocols, versions, source, tests, or configuration inside these paths:
+
+- `packages/*`
+- `apps/local`
+- `apps/cli`
+- `LICENSE`
+
+Upstream `catalog:` and `workspace:` references are intentionally preserved. Executor packages are not npm workspace members in Harnessy.
 
 ## Included
 
@@ -24,44 +35,29 @@
 - `node_modules`
 - `.git`
 
-## Patch log
+## Integration
 
-This log is the upstream-sync contract. Every local edit to an upstream vendored file must be recorded here.
+Harnessy composes Executor at source level through root `tsconfig.json` path aliases. The aliases point `@executor-js/sdk`, its Effect subpaths, FumaDB, integrations-registry, plugin-openapi, and plugin-mcp at their vendored TypeScript entry points. All vendored imports resolve `effect` from Harnessy's root installation (`4.0.0-beta.85`), giving one Effect runtime without modifying upstream files.
 
-### 2026-07-14
+Executor source dependencies added to the Harnessy root are pinned exactly:
 
-- Replaced every `catalog:` dependency reference with the corresponding concrete version from the pinned upstream root catalog. Effect-family dependencies were aligned to the Harnessy runtime at `4.0.0-beta.85`: `effect`, `@effect/platform-bun`, `@effect/platform-node`, `@effect/atom-react`, `@effect/vitest`, and `@effect/opentelemetry`. Modified manifests:
-  - `apps/cli/package.json`
-  - `apps/local/package.json`
-  - `packages/app/package.json`
-  - `packages/core/api/package.json`
-  - `packages/core/cli/package.json`
-  - `packages/core/config/package.json`
-  - `packages/core/execution/package.json`
-  - `packages/core/fumadb/package.json`
-  - `packages/core/integrations-registry/package.json`
-  - `packages/core/sdk/package.json`
-  - `packages/core/test-servers/package.json`
-  - `packages/core/vite-plugin/package.json`
-  - `packages/hosts/cloudflare/package.json`
-  - `packages/hosts/mcp/package.json`
-  - `packages/kernel/core/package.json`
-  - `packages/kernel/ir/package.json`
-  - `packages/kernel/runtime-deno-subprocess/package.json`
-  - `packages/kernel/runtime-dynamic-worker/package.json`
-  - `packages/kernel/runtime-quickjs/package.json`
-  - `packages/kernel/runtime-workerd-subprocess/package.json`
-  - `packages/plugins/apps/package.json`
-  - `packages/plugins/desktop-settings/package.json`
-  - `packages/plugins/encrypted-secrets/package.json`
-  - `packages/plugins/example/package.json`
-  - `packages/plugins/file-secrets/package.json`
-  - `packages/plugins/graphql/package.json`
-  - `packages/plugins/keychain/package.json`
-  - `packages/plugins/mcp/package.json`
-  - `packages/plugins/onepassword/package.json`
-  - `packages/plugins/openapi/package.json`
-  - `packages/plugins/provider-service-split/package.json`
-  - `packages/plugins/toolkits/package.json`
-  - `packages/plugins/workos-vault/package.json`
-  - `packages/react/package.json`
+- `@cfworker/json-schema` `4.1.1`
+- `@libsql/client` `0.17.3`
+- `@modelcontextprotocol/sdk` `1.29.0`
+- `@paralleldrive/cuid2` `3.3.0`
+- `@standard-schema/spec` `1.1.0`
+- `@types/js-yaml` `4.0.9` (development)
+- `@types/semver` `7.7.1` (development)
+- `drizzle-orm` `0.45.2`
+- `fractional-indexing` `3.2.0`
+- `js-yaml` `4.1.1`
+- `kysely` `0.28.17`
+- `oauth4webapi` `3.8.5`
+- `openapi-types` `12.1.3`
+- `semver` `7.8.5`
+- `tldts` `7.0.28`
+- `zod` `4.3.6`
+
+## Local patch log
+
+None. Integration changes live outside the verbatim upstream paths.

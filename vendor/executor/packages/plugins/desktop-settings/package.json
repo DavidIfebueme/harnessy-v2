@@ -44,11 +44,11 @@
   },
   "dependencies": {
     "@executor-js/sdk": "workspace:*",
-    "react": "^19.1.0"
+    "react": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3"
+    "@types/react": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:"
   }
 }
