@@ -39,7 +39,7 @@
 		"release:major": "node scripts/release.mjs major",
 		"release:fix-links": "node scripts/release-notes.mjs fix-github-releases",
 		"prepare": "husky",
-		"hsy:web": "cd vendor/executor/apps/local && EXECUTOR_DATA_DIR=${EXECUTOR_DATA_DIR:-$HOME/.harnessy/engine-dev} PORT=${PORT:-4788} bunx --bun vite dev"
+		"hsy:web": "cd engine/apps/local && EXECUTOR_DATA_DIR=${EXECUTOR_DATA_DIR:-$HOME/.harnessy/engine-dev} PORT=${PORT:-4788} bunx --bun vite dev"
 	},
 	"dependencies": {
 		"@cfworker/json-schema": "4.1.1",

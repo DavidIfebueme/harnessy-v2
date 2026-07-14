@@ -73,9 +73,9 @@ every copied path):
   copied from upstream root at the pinned commit. One deviation, required for
   install: the `workspaces` array drops `e2e` and `examples/*` (those trees
   were not vendored).
-- `bun install` is run inside `vendor/executor/` (bun, upstream's package
+- `bun install` is run inside `engine/` (bun, upstream's package
   manager; applies upstream's `patches/`). This creates
-  `vendor/executor/node_modules` with upstream's own dependency graph,
+  `engine/node_modules` with upstream's own dependency graph,
   including its pinned `effect` — used ONLY when running the app
   self-contained.
 
@@ -87,7 +87,7 @@ Start it from the repo root: `npm run hsy:web` (vite dev on
 
 Source-level composition (harnessy-core tests importing vendored src) must
 resolve `effect` to the repo root copy, never to
-`vendor/executor/node_modules`. `packages/harnessy-core/vitest.config.ts`
+`engine/node_modules`. `packages/harnessy-core/vitest.config.ts`
 enforces this with `resolve.dedupe`, and
 `test/effect-identity-probe.test.ts` fails the suite if the module graph ever
 splits into two effect instances again.
