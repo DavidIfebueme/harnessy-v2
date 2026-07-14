@@ -343,7 +343,7 @@ export function ServerConnectionMenu(props: ServerConnectionMenuProps = {}) {
         type="button"
         variant="ghost"
         size="icon-xs"
-        aria-label={`Select Executor server: ${serverLabel(connection)}`}
+        aria-label={`Select Harnessy server: ${serverLabel(connection)}`}
         title={`${serverLabel(connection)} (${serverDescription(connection)})`}
         className="size-7 rounded-md text-muted-foreground hover:bg-sidebar-active hover:text-foreground"
       >
@@ -353,7 +353,7 @@ export function ServerConnectionMenu(props: ServerConnectionMenuProps = {}) {
       <Button
         type="button"
         variant="ghost"
-        aria-label="Select Executor server"
+        aria-label="Select Harnessy server"
         className="group h-auto min-h-10 w-full justify-start rounded-md px-2.5 py-1.5 text-left hover:bg-sidebar-active"
       >
         <span className="size-1.5 shrink-0 rounded-full bg-primary/80" />

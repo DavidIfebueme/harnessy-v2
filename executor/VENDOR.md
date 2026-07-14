@@ -76,6 +76,7 @@ Rebrand overlay (user-visible copy only):
 - `packages/react/src/components/add-account-modal.tsx` — OAuth DCR client display name (`Harnessy for <integration>`) + CIMD host copy
 - `packages/react/src/components/add-account-modal.test.ts` — expectations updated to match the DCR client name
 - `packages/react/src/components/oauth-app-setup.ts` — Slack app manifest display name
+- `packages/app/src/web/server-connection-menu.tsx` — server selector aria-label
 
 Known upstream-branded surfaces deliberately NOT patched (deferred):
 
