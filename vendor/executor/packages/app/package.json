@@ -1,0 +1,44 @@
+{
+  "name": "@executor-js/app",
+  "version": "1.4.4",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/entry-client.tsx",
+    "./vite": "./vite.ts",
+    "./router": "./src/router.tsx",
+    "./routeTree": "./src/routeTree.gen.ts",
+    "./index.html": "./index.html"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsgo --noEmit",
+    "typecheck:slow": "tsc --noEmit",
+    "routes:gen": "bun scripts/gen-routes.ts"
+  },
+  "dependencies": {
+    "@effect/atom-react": "4.0.0-beta.85",
+    "@executor-js/react": "workspace:*",
+    "@executor-js/sdk": "workspace:*",
+    "@executor-js/vite-plugin": "workspace:*",
+    "@sentry/browser": "^10.57.0",
+    "@tanstack/react-router": "^1.168.10",
+    "effect": "4.0.0-beta.85",
+    "lucide-react": "^1.7.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-plugin": "^1.167.12",
+    "@tanstack/virtual-file-routes": "^1.162.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "react-grab": "^0.1.31",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0"
+  }
+}

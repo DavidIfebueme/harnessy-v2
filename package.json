@@ -4,6 +4,9 @@
 	"type": "module",
 	"workspaces": [
 		"packages/*",
+		"vendor/executor/packages/*",
+		"vendor/executor/packages/*/*",
+		"vendor/executor/apps/*",
 		"packages/coding-agent/examples/extensions/with-deps",
 		"packages/coding-agent/examples/extensions/custom-provider-anthropic",
 		"packages/coding-agent/examples/extensions/custom-provider-gitlab-duo",

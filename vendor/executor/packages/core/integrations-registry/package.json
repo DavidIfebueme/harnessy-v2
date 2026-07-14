@@ -1,0 +1,49 @@
+{
+  "name": "@executor-js/integrations-registry",
+  "version": "0.1.0",
+  "private": true,
+  "homepage": "https://github.com/UsefulSoftwareCo/executor/tree/main/packages/core/integrations-registry",
+  "bugs": {
+    "url": "https://github.com/UsefulSoftwareCo/executor/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UsefulSoftwareCo/executor.git",
+    "directory": "packages/core/integrations-registry"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup && (tsc --declaration --emitDeclarationOnly --outDir dist --rootDir src || true)",
+    "test": "vitest run",
+    "typecheck": "tsgo --noEmit",
+    "typecheck:slow": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.85"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "4.0.0-beta.85",
+    "@effect/vitest": "4.0.0-beta.85",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
+  }
+}

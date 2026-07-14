@@ -1,0 +1,45 @@
+{
+  "name": "executor",
+  "version": "1.5.33",
+  "private": true,
+  "bin": {
+    "executor": "./bin/executor.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "build": "bun run src/build.ts binary --single",
+    "build:all": "bun run src/build.ts binary",
+    "build:preview": "bun run src/build.ts preview",
+    "build:preview:tarball": "bun run src/build.ts preview-tarball",
+    "build:preview:wrapper": "bun run src/build.ts preview-wrapper",
+    "build:publish": "bun run src/build.ts publish",
+    "release:publish:dry-run": "bun run src/release.ts --dry-run",
+    "release:publish": "bun run src/release.ts",
+    "test": "bun --bun vitest run",
+    "typecheck": "tsgo --noEmit",
+    "typecheck:slow": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.0.0-beta.85",
+    "@executor-js/api": "workspace:*",
+    "@executor-js/integrations-registry": "workspace:*",
+    "@executor-js/local": "workspace:*",
+    "@executor-js/runtime-quickjs": "workspace:*",
+    "@executor-js/sdk": "workspace:*",
+    "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sentry/bun": "^10.57.0",
+    "effect": "4.0.0-beta.85",
+    "quickjs-emscripten": "^0.31.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-beta.85",
+    "@types/node": "^24.3.1",
+    "bun-types": "^1.2.22",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
+  }
+}

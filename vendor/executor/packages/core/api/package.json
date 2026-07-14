@@ -1,0 +1,29 @@
+{
+  "name": "@executor-js/api",
+  "version": "1.4.53",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "typecheck:slow": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@executor-js/execution": "workspace:*",
+    "@executor-js/host-mcp": "workspace:*",
+    "@executor-js/sdk": "workspace:*",
+    "effect": "4.0.0-beta.85"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-beta.85",
+    "@types/node": "^24.3.1",
+    "bun-types": "^1.2.22",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
+  }
+}
