@@ -54,7 +54,7 @@ Executor source dependencies added to the Harnessy root are pinned exactly:
 - `kysely` `0.28.17`
 - `oauth4webapi` `3.8.5`
 - `openapi-types` `12.1.3`
-- `semver` `7.8.5`
+- `semver` `7.8.0`
 - `tldts` `7.0.28`
 - `zod` `4.3.6`
 
