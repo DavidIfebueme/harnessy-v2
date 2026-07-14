@@ -39,7 +39,7 @@
 		"release:major": "node scripts/release.mjs major",
 		"release:fix-links": "node scripts/release-notes.mjs fix-github-releases",
 		"prepare": "husky",
-		"hsy:web": "cd engine/apps/local && EXECUTOR_DATA_DIR=${EXECUTOR_DATA_DIR:-$HOME/.harnessy/engine-dev} PORT=${PORT:-4788} bunx --bun vite dev"
+		"hsy:web": "cd executor/apps/local && EXECUTOR_DATA_DIR=${EXECUTOR_DATA_DIR:-$HOME/.harnessy/engine-dev} PORT=${PORT:-4788} bunx --bun vite dev"
 	},
 	"dependencies": {
 		"@cfworker/json-schema": "4.1.1",
@@ -73,7 +73,7 @@
 		"tsx": "4.22.1",
 		"typescript": "5.9.3"
 	},
-	"engines": {
+	"executors": {
 		"node": ">=22.19.0"
 	},
 	"version": "0.0.3",

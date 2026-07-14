@@ -113,7 +113,7 @@ export function ApiKeysPage() {
     <PageContainer>
       <PageHeader
         title="API keys"
-        description="User keys for accessing the Executor API and MCP endpoint from scripts and tools."
+        description="User keys for accessing the Harnessy API and MCP endpoint from scripts and tools."
         actions={
           <Button
             onClick={() => {

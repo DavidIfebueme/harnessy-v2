@@ -2,11 +2,11 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const executorSource = (path: string): string =>
-	fileURLToPath(new URL(`../../engine/${path}`, import.meta.url));
+	fileURLToPath(new URL(`../../executor/${path}`, import.meta.url));
 
 export default defineConfig({
 	resolve: {
-		// engine has its own node_modules (bun-installed, effect
+		// /executor has its own node_modules (bun-installed, effect
 		// beta.59) for running the local web app self-contained. Test code must
 		// never split runtimes: force the whole module graph onto the root
 		// copies so vendored source composes with harnessy's effect instance.

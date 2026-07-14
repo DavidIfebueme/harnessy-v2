@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-const APP_NAME = "Executor";
+const APP_NAME = "Harnessy";
 
 export function executorDocumentTitle(page: string): string {
   return `${page} · ${APP_NAME}`;

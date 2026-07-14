@@ -772,7 +772,7 @@ type RunDcrConnectInput = {
 
 export const dcrClientNameForIntegration = (integrationName: string): string => {
   const trimmed = integrationName.trim();
-  return trimmed.length > 0 ? `Executor for ${trimmed}` : "Executor";
+  return trimmed.length > 0 ? `Harnessy for ${trimmed}` : "Harnessy";
 };
 
 /**
@@ -2373,7 +2373,7 @@ function AddAccountModalView(props: AddAccountModalProps) {
                                 <p className="text-xs text-muted-foreground">
                                   {cimdConnecting
                                     ? `Connecting to ${integrationName}…`
-                                    : `${integrationName} supports Client ID Metadata Document OAuth. We'll use this Executor host's public client metadata document and sign you in.`}
+                                    : `${integrationName} supports Client ID Metadata Document OAuth. We'll use this Harnessy host's public client metadata document and sign you in.`}
                                 </p>
                               </div>
                             ) : dcrActive ? (

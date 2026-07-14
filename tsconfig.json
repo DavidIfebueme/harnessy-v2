@@ -7,40 +7,40 @@
 				"./*"
 			],
 			"@executor-js/fumadb": [
-				"./engine/packages/core/fumadb/src/index.ts"
+				"./executor/packages/core/fumadb/src/index.ts"
 			],
 			"@executor-js/fumadb/adapters/drizzle": [
-				"./engine/packages/core/fumadb/src/adapters/drizzle/index.ts"
+				"./executor/packages/core/fumadb/src/adapters/drizzle/index.ts"
 			],
 			"@executor-js/fumadb/adapters/memory": [
-				"./engine/packages/core/fumadb/src/adapters/memory/index.ts"
+				"./executor/packages/core/fumadb/src/adapters/memory/index.ts"
 			],
 			"@executor-js/fumadb/query": [
-				"./engine/packages/core/fumadb/src/query/index.ts"
+				"./executor/packages/core/fumadb/src/query/index.ts"
 			],
 			"@executor-js/fumadb/schema": [
-				"./engine/packages/core/fumadb/src/schema/index.ts"
+				"./executor/packages/core/fumadb/src/schema/index.ts"
 			],
 			"@executor-js/integrations-registry": [
-				"./engine/packages/core/integrations-registry/src/index.ts"
+				"./executor/packages/core/integrations-registry/src/index.ts"
 			],
 			"@executor-js/plugin-mcp": [
-				"./engine/packages/plugins/mcp/src/sdk/index.ts"
+				"./executor/packages/plugins/mcp/src/sdk/index.ts"
 			],
 			"@executor-js/plugin-openapi": [
-				"./engine/packages/plugins/openapi/src/sdk/index.ts"
+				"./executor/packages/plugins/openapi/src/sdk/index.ts"
 			],
 			"@executor-js/sdk": [
-				"./engine/packages/core/sdk/src/index.ts"
+				"./executor/packages/core/sdk/src/index.ts"
 			],
 			"@executor-js/sdk/core": [
-				"./engine/packages/core/sdk/src/index.ts"
+				"./executor/packages/core/sdk/src/index.ts"
 			],
 			"@executor-js/sdk/http-auth": [
-				"./engine/packages/core/sdk/src/http-auth/index.ts"
+				"./executor/packages/core/sdk/src/http-auth/index.ts"
 			],
 			"@executor-js/sdk/shared": [
-				"./engine/packages/core/sdk/src/shared.ts"
+				"./executor/packages/core/sdk/src/shared.ts"
 			],
 			"@earendil-works/pi-ai": [
 				"./packages/ai/src/index.ts"

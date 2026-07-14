@@ -1,6 +1,6 @@
 {
 	// Dedicated project for the tests that cross the engine boundary
-	// (source-level composition with the vendored Executor engine in /engine).
+	// (source-level composition with the vendored Executor engine in /executor).
 	// These files are excluded from the root Node16 project because vendored
 	// source uses extensionless relative imports, which only typecheck under
 	// Bundler resolution — the same way upstream builds them.
@@ -16,28 +16,28 @@
 		// `paths` does not merge across `extends`, so the engine alias map is
 		// re-declared here (same targets as the root tsconfig).
 		"paths": {
-			"@executor-js/fumadb": ["../../engine/packages/core/fumadb/src/index.ts"],
+			"@executor-js/fumadb": ["../../executor/packages/core/fumadb/src/index.ts"],
 			"@executor-js/fumadb/adapters/drizzle": [
-				"../../engine/packages/core/fumadb/src/adapters/drizzle/index.ts"
+				"../../executor/packages/core/fumadb/src/adapters/drizzle/index.ts"
 			],
 			"@executor-js/fumadb/adapters/memory": [
-				"../../engine/packages/core/fumadb/src/adapters/memory/index.ts"
+				"../../executor/packages/core/fumadb/src/adapters/memory/index.ts"
 			],
-			"@executor-js/fumadb/query": ["../../engine/packages/core/fumadb/src/query/index.ts"],
-			"@executor-js/fumadb/schema": ["../../engine/packages/core/fumadb/src/schema/index.ts"],
+			"@executor-js/fumadb/query": ["../../executor/packages/core/fumadb/src/query/index.ts"],
+			"@executor-js/fumadb/schema": ["../../executor/packages/core/fumadb/src/schema/index.ts"],
 			"@executor-js/integrations-registry": [
-				"../../engine/packages/core/integrations-registry/src/index.ts"
+				"../../executor/packages/core/integrations-registry/src/index.ts"
 			],
-			"@executor-js/plugin-mcp": ["../../engine/packages/plugins/mcp/src/sdk/index.ts"],
-			"@executor-js/plugin-openapi": ["../../engine/packages/plugins/openapi/src/sdk/index.ts"],
-			"@executor-js/sdk": ["../../engine/packages/core/sdk/src/index.ts"],
-			"@executor-js/sdk/core": ["../../engine/packages/core/sdk/src/index.ts"],
-			"@executor-js/sdk/http-auth": ["../../engine/packages/core/sdk/src/http-auth/index.ts"],
-			"@executor-js/sdk/shared": ["../../engine/packages/core/sdk/src/shared.ts"],
+			"@executor-js/plugin-mcp": ["../../executor/packages/plugins/mcp/src/sdk/index.ts"],
+			"@executor-js/plugin-openapi": ["../../executor/packages/plugins/openapi/src/sdk/index.ts"],
+			"@executor-js/sdk": ["../../executor/packages/core/sdk/src/index.ts"],
+			"@executor-js/sdk/core": ["../../executor/packages/core/sdk/src/index.ts"],
+			"@executor-js/sdk/http-auth": ["../../executor/packages/core/sdk/src/http-auth/index.ts"],
+			"@executor-js/sdk/shared": ["../../executor/packages/core/sdk/src/shared.ts"],
 			// Type-level runtime-split guard, mirroring `resolve.dedupe` in
-			// vitest.config.ts: /engine has its own bun-installed node_modules
+			// vitest.config.ts: /executor has its own bun-installed node_modules
 			// (for running the local app self-contained), so without this pin
-			// vendored source would resolve engine/node_modules/effect and the
+			// vendored source would resolve executor/node_modules/effect and the
 			// type graph would split into two effect instances.
 			"effect": ["../../node_modules/effect/dist/index.d.ts"],
 			"effect/*": [

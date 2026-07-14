@@ -59,7 +59,7 @@ export const slackMcpUserScopes = [
 ] as const;
 
 const slackManifest = (callbackUrl: string): SlackManifest => ({
-  display_information: { name: "Executor" },
+  display_information: { name: "Harnessy" },
   oauth_config: {
     redirect_urls: [callbackUrl],
     scopes: { user: slackMcpUserScopes },

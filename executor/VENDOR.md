@@ -60,22 +60,43 @@ Executor source dependencies added to the Harnessy root are pinned exactly:
 
 ## Local patch log
 
-None. Integration changes live outside the verbatim upstream paths.
+Policy: vendored source stays verbatim EXCEPT the Harnessy rebrand overlay
+below (Konan, 2026-07-14 — user-facing copy says Harnessy; functional
+identifiers, package names, and tool addresses stay executor). Every patched
+file is listed here; on upstream sync, re-copy verbatim and re-apply exactly
+these edits.
+
+Rebrand overlay (user-visible copy only):
+
+- `packages/react/src/components/wordmark.tsx` — wordmark text `executor` -> `harnessy`
+- `packages/react/src/api/local-auth.tsx` — auth card: `executor open` hint -> `hsy web` auth-URL hint
+- `packages/app/index.html` — `<title>` Executor -> Harnessy
+- `packages/react/src/lib/document-title.tsx` — `APP_NAME` -> Harnessy (all page titles)
+- `packages/react/src/pages/api-keys.tsx` — API/MCP endpoint description copy
+- `packages/react/src/components/add-account-modal.tsx` — OAuth DCR client display name (`Harnessy for <integration>`) + CIMD host copy
+- `packages/react/src/components/add-account-modal.test.ts` — expectations updated to match the DCR client name
+- `packages/react/src/components/oauth-app-setup.ts` — Slack app manifest display name
+
+Known upstream-branded surfaces deliberately NOT patched (deferred):
+
+- update card command (`npm i -g executor@<channel>`) — wrong control either way for a vendored engine; needs a real Harnessy update story
+- docs links to executor.sh — functional docs for engine features
+- the built-in `Executor` integration (slug `executor`) — functional identity; renaming would change tool addresses
 
 ## Self-hosted app world (`hsy web`)
 
 To run the vendored local web app (`apps/local`) as Harnessy's local test
 cockpit, the vendor dir is made self-hosting. These are ADDED integration
-files, not edits to vendored sources (the zero-patch policy still holds for
+files, not edits to vendored sources (vendored sources stay verbatim apart from the logged rebrand overlay; the added-files rule still holds for
 every copied path):
 
 - `package.json`, `bun.lock`, `tsconfig.json`, `turbo.json`, `patches/` —
   copied from upstream root at the pinned commit. One deviation, required for
   install: the `workspaces` array drops `e2e` and `examples/*` (those trees
   were not vendored).
-- `bun install` is run inside `engine/` (bun, upstream's package
+- `bun install` is run inside `/executor` (bun, upstream's package
   manager; applies upstream's `patches/`). This creates
-  `engine/node_modules` with upstream's own dependency graph,
+  `executor/node_modules` with upstream's own dependency graph,
   including its pinned `effect` — used ONLY when running the app
   self-contained.
 
@@ -87,7 +108,7 @@ Start it from the repo root: `npm run hsy:web` (vite dev on
 
 Source-level composition (harnessy-core tests importing vendored src) must
 resolve `effect` to the repo root copy, never to
-`engine/node_modules`. `packages/harnessy-core/vitest.config.ts`
+`executor/node_modules`. `packages/harnessy-core/vitest.config.ts`
 enforces this with `resolve.dedupe`, and
 `test/effect-identity-probe.test.ts` fails the suite if the module graph ever
 splits into two effect instances again.
