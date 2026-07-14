@@ -1,8 +1,13 @@
 import {
-	ANYTYPE_DEFAULT_BASE_URL,
-	AnytypeConfig,
-	anytypeKnowledgeLayer,
-} from "@harnessy/core/connectors/anytype";
+	definePlugin,
+	type HealthCheckCandidate,
+	type HealthCheckResult,
+	IntegrationSlug,
+	type ToolDef,
+	type ToolInvocationCredential,
+	ToolName,
+} from "@executor-js/sdk/core";
+import { ANYTYPE_DEFAULT_BASE_URL, AnytypeConfig, anytypeKnowledgeLayer } from "@harnessy/core/connectors/anytype";
 import {
 	ConnectorAuthError,
 	ConnectorAuthorizationError,
@@ -25,17 +30,8 @@ import {
 	KnowledgeTasks,
 } from "@harnessy/core/connectors/knowledge";
 import { isLoopbackUrl } from "@harnessy/core/connectors/loopback";
-import {
-	IntegrationSlug,
-	ToolName,
-	definePlugin,
-	type HealthCheckCandidate,
-	type HealthCheckResult,
-	type ToolDef,
-	type ToolInvocationCredential,
-} from "@executor-js/sdk/core";
-import { Clock, Effect, Schema } from "effect";
 import type { Layer } from "effect";
+import { Clock, Effect, Schema } from "effect";
 import type { HttpClient } from "effect/unstable/http";
 
 const ANYTYPE_INTEGRATION = IntegrationSlug.make("anytype");
@@ -268,8 +264,7 @@ const healthCandidate: HealthCheckCandidate = {
 };
 
 const healthResultForError = (error: ConnectorReadError, checkedAt: number): HealthCheckResult => ({
-	status:
-		error instanceof ConnectorAuthError || error instanceof ConnectorAuthorizationError ? "expired" : "degraded",
+	status: error instanceof ConnectorAuthError || error instanceof ConnectorAuthorizationError ? "expired" : "degraded",
 	checkedAt,
 	detail: error.message,
 	...(error instanceof ConnectorAuthError || error instanceof ConnectorAuthorizationError
@@ -314,7 +309,11 @@ export const harnessyAnytypePlugin = definePlugin(() => ({
 		Effect.gen(function* () {
 			const checkedAt = yield* Clock.currentTimeMillis;
 			if (spec?.operation !== "spaces_list") {
-				return { status: "unknown", checkedAt, detail: "No supported AnyType health check configured." } satisfies HealthCheckResult;
+				return {
+					status: "unknown",
+					checkedAt,
+					detail: "No supported AnyType health check configured.",
+				} satisfies HealthCheckResult;
 			}
 			const settings = yield* settingsFromCredential(credential);
 			return yield* provideAnytype(

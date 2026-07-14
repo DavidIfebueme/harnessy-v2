@@ -2,14 +2,14 @@ import { describe, expect, it } from "@effect/vitest";
 import {
 	AuthTemplateSlug,
 	ConnectionName,
+	type CredentialProvider,
+	createExecutor,
 	Effect,
 	IntegrationSlug,
 	ProviderItemId,
 	ProviderKey,
 	Tenant,
 	ToolAddress,
-	createExecutor,
-	type CredentialProvider,
 } from "@executor-js/sdk/core";
 import * as Layer from "effect/Layer";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
@@ -24,10 +24,7 @@ const makeMemoryProvider = (): CredentialProvider => {
 		get: (id) => Effect.succeed(values.get(String(id)) ?? null),
 		set: (id, value) => Effect.sync(() => void values.set(String(id), value)),
 		delete: (id) => Effect.sync(() => void values.delete(String(id))),
-		list: () =>
-			Effect.succeed(
-				[...values.keys()].map((id) => ({ id: ProviderItemId.make(id), name: id })),
-			),
+		list: () => Effect.succeed([...values.keys()].map((id) => ({ id: ProviderItemId.make(id), name: id }))),
 	};
 };
 
@@ -91,10 +88,7 @@ describe("Harnessy AnyType engine plugin", () => {
 					"tasks_list",
 				]);
 
-				const spaces = yield* executor.execute(
-					ToolAddress.make("tools.anytype.org.main.spaces_list"),
-					{},
-				);
+				const spaces = yield* executor.execute(ToolAddress.make("tools.anytype.org.main.spaces_list"), {});
 				expect(spaces).toEqual([{ backend: "anytype", id: "space-1", name: "Harnessy" }]);
 				expect(http.requests).toEqual([
 					{

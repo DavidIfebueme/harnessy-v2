@@ -69,7 +69,6 @@ export {
 	anytypeKnowledgeLayer,
 } from "./connectors/anytype.ts";
 export type { ConnectorReadError, DisabledMutation } from "./connectors/knowledge.ts";
-export { isLoopbackUrl } from "./connectors/loopback.ts";
 export {
 	ConnectorAuthError,
 	ConnectorAuthorizationError,
@@ -115,6 +114,7 @@ export {
 	UpdateTaskRequest,
 	UploadFileRequest,
 } from "./connectors/knowledge.ts";
+export { isLoopbackUrl } from "./connectors/loopback.ts";
 export {
 	NOTION_API_VERSION,
 	NOTION_DEFAULT_BASE_URL,

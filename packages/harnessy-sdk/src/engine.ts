@@ -4,14 +4,7 @@ import { join } from "node:path";
 import { fileSecretsPlugin } from "@executor-js/plugin-file-secrets";
 import { mcpPlugin } from "@executor-js/plugin-mcp";
 import { openApiPlugin } from "@executor-js/plugin-openapi";
-import {
-	Effect,
-	Subject,
-	Tenant,
-	createExecutor,
-	type Executor,
-	type OnElicitation,
-} from "@executor-js/sdk/core";
+import { createExecutor, Effect, type Executor, type OnElicitation, Subject, Tenant } from "@executor-js/sdk/core";
 
 import { harnessyAnytypePlugin } from "./plugins/anytype.ts";
 
@@ -40,9 +33,7 @@ export interface HarnessyEngineConfig {
  * and every default plugin resolve the same root Effect runtime through the
  * source aliases in this package's Bundler-mode tsconfig.
  */
-export const makeHarnessyEngine = Effect.fn("HarnessySdk.makeHarnessyEngine")(function* (
-	config: HarnessyEngineConfig,
-) {
+export const makeHarnessyEngine = Effect.fn("HarnessySdk.makeHarnessyEngine")(function* (config: HarnessyEngineConfig) {
 	const credentialDirectory = config.credentialDirectory ?? join(homedir(), ".harnessy", "engine-credentials");
 	const executor = yield* Effect.acquireRelease(
 		createExecutor({

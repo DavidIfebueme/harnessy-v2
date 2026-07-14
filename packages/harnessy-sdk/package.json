@@ -5,7 +5,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./plugins/anytype": "./src/plugins/anytype.ts"
+		"./plugins/anytype": "./src/plugins/anytype.ts",
+		"./engine": "./src/engine/index.ts"
 	},
 	"scripts": {
 		"typecheck": "tsgo --noEmit -p tsconfig.json",
