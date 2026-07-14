@@ -1,0 +1,12 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"erasableSyntaxOnly": false,
+		"noEmit": true,
+		"types": ["node"]
+	},
+	"include": ["test/engine-smoke.test.ts"],
+	"exclude": ["node_modules", "dist"]
+}

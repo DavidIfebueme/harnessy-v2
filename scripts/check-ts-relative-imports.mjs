@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 
-const ignoredDirectories = new Set([".git", "coverage", "dist", "node_modules", "open-src"]);
+const ignoredDirectories = new Set([".git", "coverage", "dist", "node_modules", "open-src", "vendor"]);
 const files = [];
 
 function collectTypescriptFiles(directory) {
