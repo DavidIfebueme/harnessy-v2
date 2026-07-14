@@ -69,6 +69,7 @@ export {
 	anytypeKnowledgeLayer,
 } from "./connectors/anytype.ts";
 export type { ConnectorReadError, DisabledMutation } from "./connectors/knowledge.ts";
+export { isLoopbackUrl } from "./connectors/loopback.ts";
 export {
 	ConnectorAuthError,
 	ConnectorAuthorizationError,

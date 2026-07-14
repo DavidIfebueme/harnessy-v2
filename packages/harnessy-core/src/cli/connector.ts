@@ -8,6 +8,7 @@ import { FetchHttpClient } from "effect/unstable/http";
 
 import { ANYTYPE_DEFAULT_BASE_URL, AnytypeConfig, anytypeKnowledgeLayer } from "../connectors/anytype.ts";
 import { KnowledgeObjects, KnowledgeSpaces } from "../connectors/knowledge.ts";
+import { isLoopbackUrl } from "../connectors/loopback.ts";
 import { HarnessError } from "../errors.ts";
 
 import {
@@ -19,13 +20,6 @@ import {
 	queryOption,
 	spaceOption,
 } from "./shared.ts";
-
-/** True when the URL points at the local machine (so it is safe to send the key). */
-export const isLoopbackUrl = (raw: string): boolean => {
-	if (!URL.canParse(raw)) return false;
-	const host = new URL(raw).hostname.replace(/^\[|\]$/g, "");
-	return host === "localhost" || host === "::1" || /^127(\.\d{1,3}){3}$/.test(host);
-};
 
 /** Resolve AnyType connection settings from flags, falling back to env. */
 export const resolveAnytype = (

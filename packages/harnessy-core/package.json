@@ -14,6 +14,18 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./connectors/anytype": {
+			"types": "./dist/connectors/anytype.d.ts",
+			"import": "./dist/connectors/anytype.js"
+		},
+		"./connectors/knowledge": {
+			"types": "./dist/connectors/knowledge.d.ts",
+			"import": "./dist/connectors/knowledge.js"
+		},
+		"./connectors/loopback": {
+			"types": "./dist/connectors/loopback.d.ts",
+			"import": "./dist/connectors/loopback.js"
 		}
 	},
 	"files": [
