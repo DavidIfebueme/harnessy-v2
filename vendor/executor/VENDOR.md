@@ -61,3 +61,33 @@ Executor source dependencies added to the Harnessy root are pinned exactly:
 ## Local patch log
 
 None. Integration changes live outside the verbatim upstream paths.
+
+## Self-hosted app world (`hsy web`)
+
+To run the vendored local web app (`apps/local`) as Harnessy's local test
+cockpit, the vendor dir is made self-hosting. These are ADDED integration
+files, not edits to vendored sources (the zero-patch policy still holds for
+every copied path):
+
+- `package.json`, `bun.lock`, `tsconfig.json`, `turbo.json`, `patches/` —
+  copied from upstream root at the pinned commit. One deviation, required for
+  install: the `workspaces` array drops `e2e` and `examples/*` (those trees
+  were not vendored).
+- `bun install` is run inside `vendor/executor/` (bun, upstream's package
+  manager; applies upstream's `patches/`). This creates
+  `vendor/executor/node_modules` with upstream's own dependency graph,
+  including its pinned `effect` — used ONLY when running the app
+  self-contained.
+
+Start it from the repo root: `npm run hsy:web` (vite dev on
+`127.0.0.1:4788`, prints a one-time `?_token=` auth URL; engine data lives in
+`~/.harnessy/engine-dev` via `EXECUTOR_DATA_DIR`).
+
+### Runtime-split guard
+
+Source-level composition (harnessy-core tests importing vendored src) must
+resolve `effect` to the repo root copy, never to
+`vendor/executor/node_modules`. `packages/harnessy-core/vitest.config.ts`
+enforces this with `resolve.dedupe`, and
+`test/effect-identity-probe.test.ts` fails the suite if the module graph ever
+splits into two effect instances again.
