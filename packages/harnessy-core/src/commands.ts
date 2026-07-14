@@ -7,6 +7,7 @@ import { bootstrapCommand, initCommand, installCommand } from "./cli/install.ts"
 import { jarvisCommand } from "./cli/jarvis.ts";
 import { skillCommand } from "./cli/skill.ts";
 import { doctorCommand, verifyCommand } from "./cli/verify.ts";
+import { webCommand } from "./cli/web.ts";
 
 export const rootCommand = Command.make("harnessy").pipe(
 	Command.withSubcommands([
@@ -18,6 +19,7 @@ export const rootCommand = Command.make("harnessy").pipe(
 		capabilityCommand,
 		skillCommand,
 		connectorCommand,
+		webCommand,
 		jarvisCommand,
 		depsCommand,
 		aiCommand,
