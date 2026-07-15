@@ -11,7 +11,10 @@ import {
 import { harnessyWelcomeExtension } from "./hsy-welcome-extension.ts";
 
 const PACKAGE_COMMANDS = new Set(["config", "install", "list", "remove", "uninstall", "update"]);
-const COMMANDS_WITH_HELP = new Set([...PACKAGE_COMMANDS, "launch"]);
+// Words routed to the harnessy CLI instead of the agent: these name product
+// surfaces (servers, engine wiring), never prompts.
+const CLI_COMMANDS = new Set(["web", "mcp"]);
+const COMMANDS_WITH_HELP = new Set([...PACKAGE_COMMANDS, ...CLI_COMMANDS, "launch"]);
 
 function normalizeHsyArgs(args: string[]): string[] {
 	const [first, second, ...rest] = args;
@@ -25,14 +28,25 @@ function normalizeHsyArgs(args: string[]): string[] {
 	return ["--help"];
 }
 
-configureHsyRuntimeEnv();
+const args = normalizeHsyArgs(process.argv.slice(2));
+const head = args[0] === "--web" ? "web" : args[0];
 
-void runPiCli(normalizeHsyArgs(process.argv.slice(2)), {
-	appIdentity: {
-		name: HSY_APP_NAME,
-		title: HSY_APP_TITLE,
-		description: HSY_APP_DESCRIPTION,
-		configDir: HSY_CONFIG_DIR,
-	},
-	extensionFactories: [{ name: "harnessy-welcome", factory: harnessyWelcomeExtension }],
-});
+if (head !== undefined && CLI_COMMANDS.has(head)) {
+	// `hsy web` starts the cockpit and `hsy mcp ...` wires agents to the
+	// engine — neither must ever fall through to the agent as a prompt.
+	// Route in-process to the harnessy CLI (same package, reads argv).
+	process.argv = [process.argv[0], process.argv[1], head, ...args.slice(1)];
+	await import("./main.ts");
+} else {
+	configureHsyRuntimeEnv();
+
+	void runPiCli(args, {
+		appIdentity: {
+			name: HSY_APP_NAME,
+			title: HSY_APP_TITLE,
+			description: HSY_APP_DESCRIPTION,
+			configDir: HSY_CONFIG_DIR,
+		},
+		extensionFactories: [{ name: "harnessy-welcome", factory: harnessyWelcomeExtension }],
+	});
+}
