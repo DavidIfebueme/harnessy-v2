@@ -20,6 +20,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRESH_DIR="${HSY_FRESH_DIR:-$(mktemp -d -t hsy-fresh-XXXXXX)}"
 mkdir -p "$FRESH_DIR/project"
 
+# Harnessy's out-of-the-box package set. A fresh user gets these builtins on
+# first launch (installed into the sandbox's own npm root — first run needs
+# network and a minute; pi-agent-browser-native may download a browser).
+# The harnessy_* engine tools are compiled in and need no package.
+if [[ ! -f "$FRESH_DIR/.pi/agent/settings.json" ]]; then
+	mkdir -p "$FRESH_DIR/.pi/agent"
+	cat >"$FRESH_DIR/.pi/agent/settings.json" <<'JSON'
+{
+	"packages": [
+		"npm:pi-subagents",
+		"npm:pi-web-access",
+		"npm:@juicesharp/rpiv-ask-user-question",
+		"npm:pi-agent-browser-native"
+	]
+}
+JSON
+fi
+
 echo "Fresh Harnessy sandbox: $FRESH_DIR"
 echo "Engine cockpit for this sandbox (separate terminal):"
 echo "  node $SCRIPT_DIR/packages/harnessy-core/dist/cli.js web --data-dir \"$FRESH_DIR/.harnessy/engine-dev\""
