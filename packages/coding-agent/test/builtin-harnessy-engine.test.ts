@@ -53,6 +53,7 @@ describe("builtin harnessy-engine extension", () => {
 			"harnessy_resume",
 			"harnessy_skills",
 		]);
+		expect(builtin?.commands.has("harnessy")).toBe(true);
 	});
 
 	it("is absent when explicitly disabled with HARNESSY_ENGINE=0", async () => {

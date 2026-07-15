@@ -125,8 +125,46 @@ async function callEngine(
 	return { content };
 }
 
+async function engineStatus(): Promise<{ ok: boolean; text: string }> {
+	const lines: string[] = [];
+	let ok = true;
+	try {
+		readEngineToken();
+		lines.push(`token       present (${join(engineDataDir(), "server-control", "auth.json")})`);
+	} catch (error) {
+		ok = false;
+		lines.push(`token       ${error instanceof Error ? error.message : String(error)}`);
+	}
+	if (ok) {
+		try {
+			await callEngine("skills", {}, undefined);
+			lines.push(`engine      reachable at ${engineBaseUrl()}`);
+		} catch (error) {
+			ok = false;
+			lines.push(`engine      ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	lines.push("");
+	lines.push(ok ? "The engine tools are live in this session:" : "Once the engine is up you get, in every session:");
+	lines.push("  harnessy_execute  run code against every connected integration (policy + audit)");
+	lines.push("  harnessy_skills   the engine's own how-to guide");
+	lines.push("  harnessy_resume   approve/decline paused runs");
+	lines.push("");
+	lines.push(`Just ask for things ("what's connected?", "search my AnyType notes") — the model uses them.`);
+	lines.push(`Connect integrations in the cockpit: \`harnessy web\` then open ${engineBaseUrl()}.`);
+	return { ok, text: lines.join("\n") };
+}
+
 /** Built-in factory wired into ResourceLoader; disabled with HARNESSY_ENGINE=0. */
 export function harnessyEngineExtension(pi: ExtensionAPI): void {
+	pi.registerCommand("harnessy", {
+		description: "Harnessy engine status and how to use it",
+		handler: async (_args, ctx) => {
+			const status = await engineStatus();
+			ctx.ui.notify(status.text, status.ok ? "info" : "warning");
+		},
+	});
+
 	pi.registerTool({
 		name: "harnessy_execute",
 		label: "Harnessy Execute",
