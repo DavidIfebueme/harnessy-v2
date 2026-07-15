@@ -8,8 +8,13 @@ It ships two commands:
 
 | Command | Purpose |
 |---------|---------|
-| `harnessy` | Deterministic setup, capability management, verification, connectors, and skill commands. |
-| `hsy` | Harnessy agent shell. It launches the Pi runtime with Harnessy identity and its own `~/.hsy/agent` config. |
+| `harnessy` | Deterministic setup, capability management, verification, connectors, engine cockpit (`harnessy web`), and MCP wiring (`harnessy mcp install`). |
+| `hsy` | Harnessy agent shell. It launches the Pi runtime with Harnessy identity and its own `~/.hsy/agent` config; the engine's tools (`harnessy_execute` / `harnessy_skills` / `harnessy_resume`) are built into every session. |
+
+Both sit on the Harnessy engine (the vendored Executor at `executor/`), which
+owns integrations, connections, credentials, policies, approvals, and audit.
+The full surface map — agent tools, CLI, cockpit, MCP endpoint, SDK — is in
+[`docs/product-surfaces.md`](docs/product-surfaces.md).
 
 ## Install
 
