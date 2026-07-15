@@ -77,6 +77,8 @@ Rebrand overlay (user-visible copy only):
 - `packages/react/src/components/add-account-modal.test.ts` — expectations updated to match the DCR client name
 - `packages/react/src/components/oauth-app-setup.ts` — Slack app manifest display name
 - `packages/app/src/web/server-connection-menu.tsx` — server selector aria-label
+- `packages/react/src/components/mcp-install-card.tsx` — MCP install snippet registers the server as `--name harnessy` (the endpoint/CLI invocation stays functional-executor)
+- `packages/react/src/components/mcp-install-card.test.ts` — expectations updated to the harnessy server name
 
 Known upstream-branded surfaces deliberately NOT patched (deferred):
 

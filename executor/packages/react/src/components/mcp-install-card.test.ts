@@ -15,7 +15,7 @@ describe("MCP install command rendering", () => {
     });
 
     expect(command).toBe(
-      `npx add-mcp 'executor mcp --scope '"'"'/tmp/scope"; touch /tmp/unsafe; echo "'"'"'' --name executor`,
+      `npx add-mcp 'executor mcp --scope '"'"'/tmp/scope"; touch /tmp/unsafe; echo "'"'"'' --name harnessy`,
     );
     expect(command).not.toContain(`--scope "/tmp/scope"; touch`);
   });
@@ -27,7 +27,7 @@ describe("MCP install command rendering", () => {
         isDev: false,
         origin: "http://localhost:4788",
       }),
-    ).toBe("npx add-mcp http://localhost:4788/mcp --transport http --name executor");
+    ).toBe("npx add-mcp http://localhost:4788/mcp --transport http --name harnessy");
   });
 
   it("renders active server authorization as an HTTP MCP header", () => {
@@ -39,7 +39,7 @@ describe("MCP install command rendering", () => {
         authorizationHeader: "Bearer abc123",
       }),
     ).toBe(
-      "npx add-mcp http://127.0.0.1:4789/mcp --transport http --name executor --header 'Authorization: Bearer abc123'",
+      "npx add-mcp http://127.0.0.1:4789/mcp --transport http --name harnessy --header 'Authorization: Bearer abc123'",
     );
   });
 
@@ -59,7 +59,7 @@ describe("MCP install command rendering", () => {
         elicitationMode: "browser",
       }),
     ).toBe(
-      "npx add-mcp 'https://executor.example/mcp?elicitation_mode=browser' --transport http --name executor",
+      "npx add-mcp 'https://executor.example/mcp?elicitation_mode=browser' --transport http --name harnessy",
     );
 
     expect(
@@ -70,7 +70,7 @@ describe("MCP install command rendering", () => {
         elicitationMode: "native",
       }),
     ).toBe(
-      "npx add-mcp 'https://executor.example/mcp?elicitation_mode=native' --transport http --name executor",
+      "npx add-mcp 'https://executor.example/mcp?elicitation_mode=native' --transport http --name harnessy",
     );
   });
 
@@ -82,7 +82,7 @@ describe("MCP install command rendering", () => {
         origin: null,
         elicitationMode: "model",
       }),
-    ).toBe("npx add-mcp 'executor mcp' --name executor");
+    ).toBe("npx add-mcp 'executor mcp' --name harnessy");
   });
 
   it("pins dev stdio install commands to the repo cwd", () => {
@@ -95,7 +95,7 @@ describe("MCP install command rendering", () => {
         devCliCwd: "/Users/rhyssullivan/src/executor",
       }),
     ).toBe(
-      "npx add-mcp 'bun run --cwd /Users/rhyssullivan/src/executor dev:cli mcp --scope /Users/rhyssullivan/src/executor/apps/local' --name executor",
+      "npx add-mcp 'bun run --cwd /Users/rhyssullivan/src/executor dev:cli mcp --scope /Users/rhyssullivan/src/executor/apps/local' --name harnessy",
     );
   });
 
@@ -107,7 +107,7 @@ describe("MCP install command rendering", () => {
         origin: null,
         elicitationMode: "browser",
       }),
-    ).toBe("npx add-mcp 'executor mcp --elicitation-mode browser' --name executor");
+    ).toBe("npx add-mcp 'executor mcp --elicitation-mode browser' --name harnessy");
   });
 
   it("pins the HTTP endpoint to the org slug when one is supplied", () => {
@@ -126,7 +126,7 @@ describe("MCP install command rendering", () => {
         origin: "https://executor.example",
         organizationSlug: "acme-corp",
       }),
-    ).toBe("npx add-mcp https://executor.example/acme-corp/mcp --transport http --name executor");
+    ).toBe("npx add-mcp https://executor.example/acme-corp/mcp --transport http --name harnessy");
   });
 
   it("keeps the bare /mcp path when no org slug is supplied", () => {

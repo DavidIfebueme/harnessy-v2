@@ -95,7 +95,7 @@ export const buildMcpInstallCommand = (input: {
       headerFlags.push(`--header ${shellQuoteWord(`Authorization: ${input.authorizationHeader}`)}`);
     }
     const parts = [
-      `npx add-mcp ${shellQuoteWord(endpoint)} --transport http --name executor`,
+      `npx add-mcp ${shellQuoteWord(endpoint)} --transport http --name harnessy`,
       ...headerFlags,
     ];
     return parts.join(" ");
@@ -112,7 +112,7 @@ export const buildMcpInstallCommand = (input: {
   if (input.elicitationMode && input.elicitationMode !== "model") {
     innerArgs.push("--elicitation-mode", input.elicitationMode);
   }
-  return `npx add-mcp ${shellQuoteWord(innerArgs.map(shellQuoteWord).join(" "))} --name executor`;
+  return `npx add-mcp ${shellQuoteWord(innerArgs.map(shellQuoteWord).join(" "))} --name harnessy`;
 };
 
 export function McpInstallCard(props: { className?: string }) {
