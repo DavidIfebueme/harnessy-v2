@@ -1,38 +1,32 @@
 /**
  * Built-in Harnessy engine bridge.
  *
- * The Harnessy engine (the vendored Executor) exposes its entire connected
+ * The Harnessy engine (Executor) exposes its entire connected
  * tool catalog — integrations, connections, policies, approvals, audit —
  * through one small MCP surface: `execute`, `skills`, and `resume`. This
  * builtin hardwires that surface into every Harnessy session as `harnessy_*`
  * tools.
- * The engine and this agent are one product, so no MCP registration or
- * token copying is required: the bearer token is read from the engine's own
- * data directory at call time.
+ * The engine and this agent are one product, so no MCP registration or token
+ * copying is required. hsy starts bundled Executor's stdio MCP entrypoint
+ * directly; other agents can install the same entrypoint as an MCP server.
  *
- * The engine is contacted lazily. When it is not running (or has never been
- * started), the tools stay registered and fail with instructions to run
- * `harnessy web` — readiness is evidence reported to the model, not a
- * startup error.
+ * The engine is contacted lazily. Executor attaches to the shared local owner
+ * or starts it in the background when the first MCP client connects.
  *
  * Environment overrides:
- * - `HARNESSY_ENGINE_URL`      engine base URL (default http://127.0.0.1:4788)
- * - `HARNESSY_ENGINE_DATA_DIR` engine data dir (default ~/.harnessy/engine-dev)
+ * - `HARNESSY_EXECUTOR_COMMAND` executable for bundled Executor
+ * - `HARNESSY_EXECUTOR_ARGS`    JSON string array ending in `mcp`
  * - `HARNESSY_PI_RUNTIME=true` enable the builtin for the Harnessy entrypoint
  * - `HARNESSY_ENGINE=0`        disable the builtin entirely
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Type } from "typebox";
 import { VERSION } from "../../../config.ts";
 import type { ExtensionAPI } from "../types.ts";
 
-const DEFAULT_ENGINE_PORT = 4788;
 /** Engine `execute` runs may do real work (API calls, pauses); give them room. */
 const CALL_TIMEOUT_MS = 600_000;
 
@@ -40,47 +34,44 @@ export function harnessyEngineToolCanRetry(tool: string): boolean {
 	return tool === "skills";
 }
 
-function engineBaseUrl(): string {
-	const fromEnv = process.env.HARNESSY_ENGINE_URL?.trim();
-	return (fromEnv || `http://127.0.0.1:${DEFAULT_ENGINE_PORT}`).replace(/\/$/, "");
+interface ExecutorMcpLaunch {
+	readonly command: string;
+	readonly args: string[];
 }
 
-function engineDataDir(): string {
-	return process.env.HARNESSY_ENGINE_DATA_DIR?.trim() || join(homedir(), ".harnessy", "engine-dev");
+function executorMcpLaunch(): ExecutorMcpLaunch {
+	const command = process.env.HARNESSY_EXECUTOR_COMMAND?.trim() || "executor";
+	const rawArgs = process.env.HARNESSY_EXECUTOR_ARGS?.trim();
+	if (!rawArgs) return { command, args: ["mcp", "--elicitation-mode", "model"] };
+	const parsed = JSON.parse(rawArgs) as unknown;
+	if (!Array.isArray(parsed) || !parsed.every((arg) => typeof arg === "string")) {
+		throw new Error("HARNESSY_EXECUTOR_ARGS must be a JSON string array.");
+	}
+	return { command, args: parsed };
 }
 
-function readEngineToken(): string {
-	const authPath = join(engineDataDir(), "server-control", "auth.json");
-	if (!existsSync(authPath)) {
-		throw new Error(
-			`Harnessy engine auth token not found at ${authPath}. Start the engine once with \`harnessy web\` (it writes the token on boot), then retry.`,
-		);
-	}
-	const parsed = JSON.parse(readFileSync(authPath, "utf-8")) as { token?: unknown };
-	if (typeof parsed.token !== "string" || parsed.token === "") {
-		throw new Error(`${authPath} does not contain a { token } object; re-start the engine with \`harnessy web\`.`);
-	}
-	return parsed.token;
+function childEnvironment(): Record<string, string> {
+	return Object.fromEntries(
+		Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+	);
 }
 
 let clientPromise: Promise<Client> | null = null;
 
 async function connectClient(): Promise<Client> {
-	const token = readEngineToken();
-	// elicitation_mode=model keeps approvals in-band: paused executions return
-	// an executionId the model resumes with harnessy_resume.
-	const endpoint = new URL(`${engineBaseUrl()}/mcp?elicitation_mode=model`);
-	const transport = new StreamableHTTPClientTransport(endpoint, {
-		requestInit: { headers: { Authorization: `Bearer ${token}` } },
+	const launch = executorMcpLaunch();
+	const transport = new StdioClientTransport({
+		command: launch.command,
+		args: launch.args,
+		env: childEnvironment(),
+		stderr: "inherit",
 	});
 	const client = new Client({ name: "harnessy-agent", version: VERSION }, { capabilities: {} });
 	try {
 		await client.connect(transport);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(
-			`Harnessy engine is not reachable at ${engineBaseUrl()} (${message}). Start it with \`harnessy web\`, then retry.`,
-		);
+		throw new Error(`Bundled Executor could not start via ${launch.command} ${launch.args.join(" ")} (${message}).`);
 	}
 	return client;
 }
@@ -137,29 +128,21 @@ async function engineStatus(): Promise<{ ok: boolean; text: string }> {
 	const lines: string[] = [];
 	let ok = true;
 	try {
-		readEngineToken();
-		lines.push(`token       present (${join(engineDataDir(), "server-control", "auth.json")})`);
+		await callEngine("skills", {}, undefined);
+		const launch = executorMcpLaunch();
+		lines.push(`executor    connected through ${launch.command} ${launch.args.join(" ")}`);
 	} catch (error) {
 		ok = false;
-		lines.push(`token       ${error instanceof Error ? error.message : String(error)}`);
-	}
-	if (ok) {
-		try {
-			await callEngine("skills", {}, undefined);
-			lines.push(`engine      reachable at ${engineBaseUrl()}`);
-		} catch (error) {
-			ok = false;
-			lines.push(`engine      ${error instanceof Error ? error.message : String(error)}`);
-		}
+		lines.push(`executor    ${error instanceof Error ? error.message : String(error)}`);
 	}
 	lines.push("");
-	lines.push(ok ? "The engine tools are live in this session:" : "Once the engine is up you get, in every session:");
+	lines.push(ok ? "The engine tools are live in this session:" : "The native MCP tools remain registered:");
 	lines.push("  harnessy_execute  run code against every connected integration (policy + audit)");
 	lines.push("  harnessy_skills   the engine's own how-to guide");
 	lines.push("  harnessy_resume   approve/decline paused runs");
 	lines.push("");
-	lines.push(`Just ask for things ("what's connected?", "search my AnyType notes") — the model uses them.`);
-	lines.push(`Connect integrations in the cockpit: \`harnessy web\` then open ${engineBaseUrl()}.`);
+	lines.push(`Just ask for things ("connect my Google Calendar", "search my AnyType notes") — the model uses them.`);
+	lines.push("Use `harnessy web` only when a browser handoff or cockpit view is useful.");
 	return { ok, text: lines.join("\n") };
 }
 

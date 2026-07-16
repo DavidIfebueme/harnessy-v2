@@ -7,16 +7,17 @@ import { openApiPlugin } from "@executor-js/plugin-openapi";
 import { createExecutor, Effect, type Executor, type OnElicitation, Subject, Tenant } from "@executor-js/sdk/core";
 
 import { harnessyAnytypePlugin } from "./plugins/anytype.ts";
+import { HARNESSY_PRESETS } from "./presets.ts";
 
-const makePlugins = (credentialDirectory: string) =>
+export const makeHarnessyPlugins = (credentialDirectory: string) =>
 	[
-		openApiPlugin(),
+		openApiPlugin({ presets: HARNESSY_PRESETS }),
 		mcpPlugin(),
 		harnessyAnytypePlugin(),
 		fileSecretsPlugin({ directory: credentialDirectory }),
 	] as const;
 
-export type HarnessyEnginePlugins = ReturnType<typeof makePlugins>;
+export type HarnessyEnginePlugins = ReturnType<typeof makeHarnessyPlugins>;
 export type HarnessyEngine = Executor<HarnessyEnginePlugins>;
 
 export interface HarnessyEngineConfig {
@@ -40,7 +41,7 @@ export const makeHarnessyEngine = Effect.fn("HarnessySdk.makeHarnessyEngine")(fu
 			tenant: Tenant.make(config.tenant),
 			...(config.subject === undefined ? {} : { subject: Subject.make(config.subject) }),
 			onElicitation: config.onElicitation,
-			plugins: makePlugins(credentialDirectory),
+			plugins: makeHarnessyPlugins(credentialDirectory),
 		}),
 		(executor) => executor.close().pipe(Effect.orDie),
 	);

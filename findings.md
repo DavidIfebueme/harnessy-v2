@@ -68,3 +68,22 @@ Port domain behavior, schemas, compatibility formats, and deterministic transfor
 - Python singleton adapter registry.
 - Direct Anthropic-only execution.
 - Android/tmux/cloudflared/Obsidian launch behavior from core; expose these as optional capabilities.
+
+## Executor-native MCP findings (2026-07-16)
+
+- MCP tools are model-controlled and discovered through `tools/list`; prompts remain user-controlled. This supports conversational and explicit-command use without a parallel Harnessy protocol.
+- Local agent integrations conventionally use stdio. The client starts the configured command and the server may own a shared background process internally. Streamable HTTP is the standard shared/remote transport, not a prerequisite for local agent use.
+- Codex and Claude Code both install stdio with `<client> mcp add <name> -- <command> <args>`. Codex consumes server instructions and tool annotations for approvals; Claude Code discovers MCP prompts as slash commands and supports project/user/local scopes.
+- Executor 1.5.33 is published as a cross-platform npm wrapper with compiled binaries and no required lifecycle scripts.
+- Executor's `executor mcp` already discovers or race-safely starts one background daemon and bridges multiple stdio clients to it. Harnessy's fixed HTTP bridge bypassed this lifecycle and caused the live failure.
+- Executor supports native, browser, and model-managed elicitation internally, but its packaged CLI currently selects only browser/model. The universal local default remains model-managed until client elicitation support is consistently advertised.
+- Executor currently lacks server instructions, standard MCP behavior annotations, and agent-visible integration preset tools. Those gaps prevent native approval policy and natural discovery such as Google Calendar.
+- `add-mcp` supports stdio command plus repeated args across Claude Code, Codex, Cursor, Gemini CLI, OpenCode, VS Code, and other clients, so it remains a useful multi-client installer after switching from tokenized HTTP to stdio.
+- The real `hsy` agent path can discover and call Executor's MCP-management tools without telling the user about Executor or requiring `harnessy web`.
+- Executor correctly pauses both MCP registration and no-auth connection creation for in-terminal approval, then materializes the connection's tools.
+- A live installation of `@modelcontextprotocol/server-everything` exposed `credential-free-math.user.localMath.get_sum`; invoking it through `hsy` returned `The sum of 21 and 21 is 42.`
+- Broad search phrased as `connector add` returned no result, while `MCP server` and `integration install` found `executor.mcp.addServer`. Natural discovery works but remains vocabulary-sensitive.
+- Two transient `fetch failed` messages were model-provider response errors (`openai-codex-responses`, `stopReason: "error"`) recorded after successful tool results. They were not Executor/MCP transport failures; `hsy` resumed and completed without replaying a tool call.
+- Executor's MCP-owned daemon selected an available ephemeral port (`44759`) during the live run; port `4788` is only the cockpit command's preferred port and should not be documented as the universal daemon default.
+- The published `executor@1.5.33` wrapper selects exact platform packages (glibc/musl, x64/arm64, macOS/Windows) and supports `EXECUTOR_BIN_PATH`; it has no source-runtime fallback. Harnessy therefore uses the vendored source CLI only inside this development checkout and delegates installed runtime selection to the official wrapper.
+- On this WSL host, the selected `executor-linux-x64` binary crashed while loading its bundled `libsql.node`; the same live flow passed through the vendored source CLI. This is an upstream platform-binary risk for installed-package testing, not a reason for Harnessy to invent another runtime selector.

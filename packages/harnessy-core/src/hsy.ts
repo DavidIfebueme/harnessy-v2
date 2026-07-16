@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import process from "node:process";
 import { runPiCli } from "@earendil-works/pi-coding-agent";
+import { resolveExecutorBuiltin } from "./executor-builtin.ts";
 import {
 	configureHsyRuntimeEnv,
 	HSY_APP_DESCRIPTION,
@@ -27,6 +28,10 @@ function normalizeHsyArgs(args: string[]): string[] {
 }
 
 configureHsyRuntimeEnv();
+
+const executor = resolveExecutorBuiltin();
+process.env.HARNESSY_EXECUTOR_COMMAND = executor.command;
+process.env.HARNESSY_EXECUTOR_ARGS = JSON.stringify([...executor.args, "mcp", "--elicitation-mode", "model"]);
 
 void runPiCli(normalizeHsyArgs(process.argv.slice(2)), {
 	appIdentity: {

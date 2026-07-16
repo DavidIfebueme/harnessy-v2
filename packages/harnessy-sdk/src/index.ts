@@ -7,3 +7,4 @@ export {
 	makeHarnessyEngine,
 } from "./engine.ts";
 export { AnytypeConnectionConfigError, harnessyAnytypePlugin } from "./plugins/anytype.ts";
+export { HARNESSY_PRESETS } from "./presets.ts";

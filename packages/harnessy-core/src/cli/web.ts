@@ -1,16 +1,16 @@
-import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join, resolve } from "node:path";
 import process from "node:process";
 
-import { Console } from "effect";
+import { Console, Schema } from "effect";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { Command, Flag } from "effect/unstable/cli";
 
 import { ANYTYPE_DEFAULT_BASE_URL, ANYTYPE_DEFAULT_VERSION } from "../connectors/anytype.ts";
 import { HarnessError } from "../errors.ts";
+import { runExecutorBuiltin } from "../executor-builtin.ts";
 
 const DEFAULT_COCKPIT_PORT = 4788;
 const COCKPIT_READY_TIMEOUT_MS = 30_000;
@@ -93,115 +93,86 @@ export async function registerBundledAnytype({
 	return "registered";
 }
 
-/**
- * The cockpit is the vendored engine's local web app (`executor/apps/local`),
- * run with upstream's own tooling (bun + vite) from its self-hosted vendor
- * world. Walk upward from cwd so the command works from anywhere inside the
- * repo; there is no installed-package story for the cockpit yet — it is a
- * dev/test surface, and the error says so when the tree is not present.
- */
-const findCockpitDir = (startDir: string): string | undefined => {
-	let current = startDir;
-	for (;;) {
-		const candidate = join(current, "executor", "apps", "local");
-		if (existsSync(join(candidate, "vite.config.ts"))) return candidate;
-		const parent = dirname(current);
-		if (parent === current) return undefined;
-		current = parent;
-	}
-};
-
 const portFlag = Flag.integer("port").pipe(
-	Flag.withDescription("Port for the cockpit dev server (default 4788)"),
+	Flag.withDescription("Preferred port for the packaged cockpit service (default 4788)"),
 	Flag.optional,
 );
 
 const dataDirFlag = Flag.string("data-dir").pipe(
-	Flag.withDescription("Engine data directory (default ~/.harnessy/engine-dev)"),
+	Flag.withDescription("Executor data directory (default ~/.executor)"),
 	Flag.optional,
 );
 
-export const webCommand = Command.make("web", { port: portFlag, dataDir: dataDirFlag }, ({ port, dataDir }) =>
-	Effect.gen(function* () {
-		const cockpitDir = findCockpitDir(process.cwd());
-		if (cockpitDir === undefined) {
-			return yield* new HarnessError({
-				message:
-					"Could not find the engine cockpit (executor/apps/local) above the current directory. Run this inside the harnessy repo.",
-			});
-		}
-		const resolvedPort = Option.getOrElse(port, () => DEFAULT_COCKPIT_PORT);
-		const resolvedDataDir = Option.getOrElse(dataDir, () => join(homedir(), ".harnessy", "engine-dev"));
-		const cockpitUrl = `http://127.0.0.1:${resolvedPort}`;
-		yield* Console.log(`Starting the Harnessy cockpit from ${cockpitDir}`);
-		yield* Console.log(`Engine data: ${resolvedDataDir}`);
+const scopeFlag = Flag.string("scope").pipe(
+	Flag.withDescription("Executor workspace scope (default: current directory)"),
+	Flag.optional,
+);
 
-		const exitCode = yield* Effect.callback<number, HarnessError>((resume) => {
-			let registrationComplete = false;
-			let settled = false;
-			const abortController = new AbortController();
-			const finish = (effect: Effect.Effect<number, HarnessError>) => {
-				if (settled) return;
-				settled = true;
-				resume(effect);
+const EngineServerManifest = Schema.Struct({
+	connection: Schema.Struct({ origin: Schema.String }),
+});
+
+const readEngineOrigin = (dataDir: string) =>
+	Effect.try({
+		try: () => {
+			const manifestPath = join(dataDir, "server-control", "server.json");
+			const manifest = Schema.decodeUnknownSync(EngineServerManifest)(
+				JSON.parse(readFileSync(manifestPath, "utf8")) as unknown,
+			);
+			return manifest.connection.origin;
+		},
+		catch: (cause) =>
+			new HarnessError({
+				message: `The packaged Executor daemon started without a readable server manifest: ${String(cause)}`,
+			}),
+	});
+
+export const webCommand = Command.make(
+	"web",
+	{ port: portFlag, dataDir: dataDirFlag, scope: scopeFlag },
+	({ port, dataDir, scope }) =>
+		Effect.gen(function* () {
+			const resolvedPort = Option.getOrElse(port, () => DEFAULT_COCKPIT_PORT);
+			const executorDataDir = resolve(
+				Option.getOrElse(dataDir, () => process.env.EXECUTOR_DATA_DIR?.trim() || join(homedir(), ".executor")),
+			);
+			const executorEnv: NodeJS.ProcessEnv = {
+				...process.env,
+				...(Option.isSome(dataDir) ? { EXECUTOR_DATA_DIR: executorDataDir } : {}),
 			};
-			const child = spawn("bunx", ["--bun", "vite", "dev"], {
-				cwd: cockpitDir,
-				stdio: "inherit",
-				env: {
-					...process.env,
-					EXECUTOR_DATA_DIR: resolvedDataDir,
-					PORT: String(resolvedPort),
-				},
+			yield* Console.log(`Executor data: ${executorDataDir}`);
+			const daemonExitCode = yield* runExecutorBuiltin({
+				args: [
+					"daemon",
+					"run",
+					"--port",
+					String(resolvedPort),
+					"--hostname",
+					"127.0.0.1",
+					...(Option.isSome(scope) ? ["--scope", scope.value] : []),
+				],
+				env: executorEnv,
 			});
-			child.once("error", (error) =>
-				finish(
-					Effect.fail(
-						new HarnessError({
-							message: `Failed to start the cockpit (is bun installed?): ${error.message}`,
-						}),
-					),
-				),
-			);
-			child.once("exit", (code) => {
-				if (!registrationComplete) {
-					finish(
-						Effect.fail(
-							new HarnessError({
-								message: `Cockpit exited with code ${code ?? 0} before the bundled AnyType integration was registered.`,
-							}),
-						),
-					);
-					return;
-				}
-				finish(Effect.succeed(code ?? 0));
+			if (daemonExitCode !== 0) {
+				return yield* new HarnessError({ message: `Executor daemon exited with code ${daemonExitCode}.` });
+			}
+
+			const cockpitUrl = yield* readEngineOrigin(executorDataDir);
+			yield* Effect.tryPromise({
+				try: () =>
+					registerBundledAnytype({
+						cockpitUrl,
+						dataDir: executorDataDir,
+					}),
+				catch: (cause) =>
+					new HarnessError({
+						message: `Failed to register the bundled AnyType integration: ${String(cause)}`,
+					}),
 			});
-			void registerBundledAnytype({
-				cockpitUrl,
-				dataDir: resolvedDataDir,
-				signal: abortController.signal,
-			}).then(
-				() => {
-					registrationComplete = true;
-				},
-				(error: unknown) => {
-					finish(
-						Effect.fail(
-							new HarnessError({
-								message: `Failed to register the bundled AnyType integration: ${error instanceof Error ? error.message : String(error)}`,
-							}),
-						),
-					);
-					child.kill("SIGTERM");
-				},
-			);
-			return Effect.sync(() => {
-				abortController.abort();
-				child.kill("SIGTERM");
-			});
-		});
-		if (exitCode !== 0) {
-			return yield* new HarnessError({ message: `Cockpit exited with code ${exitCode}.` });
-		}
-	}),
-).pipe(Command.withDescription("Run the local engine cockpit (web UI) for testing"));
+
+			const webExitCode = yield* runExecutorBuiltin({ args: ["web"], env: executorEnv });
+			if (webExitCode !== 0) {
+				return yield* new HarnessError({ message: `Executor web command exited with code ${webExitCode}.` });
+			}
+		}),
+).pipe(Command.withDescription("Start or attach the packaged engine daemon and open its cockpit"));

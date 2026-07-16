@@ -53,7 +53,7 @@ The division of labor:
 ## What remains open
 
 - **The skills boundary with Executor.** Executor's vision claims skills (company knowledge as code, served over MCP). Portable skills are also Harnessy's core mission. Proposed line: Harnessy owns the portable format and cross-agent lifecycle; Executor is one surface that serves them. Needs explicit agreement with Rhys — this is the biggest open question.
-- ~~Consume Executor as packages vs. contribute upstream vs. isolate.~~ **Decided (2026-07-13): vendor Executor into Harnessy** (MIT; same treatment as the vendored Pi packages). The engine is an internal implementation detail — no external product or seam ever depends on Executor directly; everything consumes `@harnessy/sdk`. The vendored copy is bumped to Harnessy's Effect version in-tree, which dissolves the version gap. Engine-level improvements are still contributed upstream where they fit.
+- ~~Consume Executor as packages vs. contribute upstream vs. isolate.~~ **Decided (2026-07-13): vendor Executor into Harnessy** (MIT; same treatment as the vendored Pi packages). Programmatic Harnessy consumers use `@harnessy/sdk`; agent hosts use Executor's standard MCP surface directly. `hsy` includes that MCP surface as a built-in, while Claude Code, Codex, and other MCP agents can install the same bundled entrypoint. Engine-level improvements are still contributed upstream where they fit.
 - Which Garden connector is extracted first, and when Garden's proxy starts retiring.
 - Terminology: "capability" currently means three different things across the repos (Harnessy pack, Garden permission rows, Executor's capability membrane). One glossary line each, before any cross-team review.
 

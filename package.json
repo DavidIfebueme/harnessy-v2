@@ -12,7 +12,7 @@
 	],
 	"scripts": {
 		"clean": "npm run clean --workspaces",
-		"build": "npm --workspace @earendil-works/pi-tui run build && npm --workspace @earendil-works/pi-ai run build:ts && npm --workspace @earendil-works/pi-agent-core run build && npm --workspace @earendil-works/pi-coding-agent run build && npm --workspace @earendil-works/pi-orchestrator run build && npm --workspace @harnessy/core run build",
+		"build": "npm --workspace @earendil-works/pi-tui run build && npm --workspace @earendil-works/pi-ai run build:ts && npm --workspace @earendil-works/pi-agent-core run build && npm --workspace @earendil-works/pi-coding-agent run build && npm --workspace @earendil-works/pi-orchestrator run build && npm --workspace @harnessy/core run build && npm --workspace @harnessy/engine run build",
 		"check": "biome check --write --error-on-warnings . && npm run check:pinned-deps && npm run check:ts-imports && npm run check:workspace-builds && npm run check:shrinkwrap && npm run check:install-lock:coding-agent && tsgo --noEmit && npm run lint && npm run check:browser-smoke",
 		"lint": "oxlint packages/harnessy-core",
 		"check:browser-smoke": "node scripts/check-browser-smoke.mjs",
@@ -39,7 +39,7 @@
 		"release:major": "node scripts/release.mjs major",
 		"release:fix-links": "node scripts/release-notes.mjs fix-github-releases",
 		"prepare": "husky",
-		"hsy:web": "cd executor/apps/local && EXECUTOR_DATA_DIR=${EXECUTOR_DATA_DIR:-$HOME/.harnessy/engine-dev} PORT=${PORT:-4788} bunx --bun vite dev",
+		"hsy:web": "harnessy web",
 		"hsy:fresh": "./hsy-fresh.sh"
 	},
 	"dependencies": {
