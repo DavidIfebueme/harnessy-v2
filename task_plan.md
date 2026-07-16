@@ -258,3 +258,15 @@ Automatic rollback is blocked if replay would lose data. There is no mutable dua
 - [x] Expose a read-only diagnostic command showing resolved config, paths, context, and migration status.
 
 This slice proves compatibility architecture before connector writes or product workflows are ported.
+
+## Active slice — Executor-native agent integration (2026-07-16)
+
+- [x] Establish current MCP, Claude Code, and Codex installation contracts from official documentation.
+- [x] Map Executor MCP host, daemon lifecycle, package artifact, client installer, auth, and elicitation paths.
+- [x] Make bundled Executor a default `hsy` builtin over stdio while keeping ordinary Pi sessions gated out.
+- [x] Delegate runtime selection, daemon lifecycle, catalog state, and connection state to Executor.
+- [x] Add regression coverage for Harnessy gating, retry safety, builtin resolution, MCP installation, fresh runtime environment, and cockpit startup.
+- [x] Run focused tests and a human-style `hsy` terminal flow that installs, connects, discovers, and invokes a credential-free MCP server.
+- [x] Run the repository check, resolve failures, and review the final diff without committing `.pi/todos/`.
+
+Constraint: Executor owns the agent protocol; do not create a parallel Harnessy intent protocol. Preserve CLI, slash commands, and cockpit as alternate surfaces.

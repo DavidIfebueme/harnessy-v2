@@ -73,6 +73,8 @@
 | Read-only subagents were marked failed because their structured acceptance reports were not recognized | Read and validated both completed output artifacts manually; no repository writes occurred |
 | First full check rejected a generator with no `yield` | Replaced it with an `Effect.fn` returning `Effect.succeed`; full check passed |
 | Reviewer found incomplete Pydantic integer/boolean coercion parity | Replaced ad hoc normalization with Effect Schema codecs and added oracle-derived boundary tests |
+| Concurrent `@harnessy/engine` artifact validation hit a `partyserver` / `@cloudflare/workers-types` peer conflict | Package owner is correcting its pinned dependency before the shared repository check |
+| Concurrent Harnessy preset review found unsupported Slack Swagger 2.0 and discarded API-key preset auth | Package owner must resolve both blockers before the shared repository check and dev merge |
 
 ## Current state
 
@@ -81,3 +83,28 @@ The approved first implementation slice and parity/oracle expansion are committe
 ## Next action
 
 Validate and close #53, then add backend-neutral AnyType/Notion HTTP contract and REST drift fixtures in #54.
+
+## 2026-07-16 — Executor-native agent integration
+
+- Corrected the product boundary: agents install and use Executor through standard MCP; Harnessy-specific intent tools are not the protocol.
+- Added exact `executor@1.5.33` dependency resolution while using the vendored source CLI during repository development.
+- Changed multi-agent installation from fixed HTTP/token registration to Executor's standard stdio MCP entrypoint.
+- Replaced the repository-only Vite cockpit launcher with Executor daemon startup/attach and cockpit opening.
+- Rewired `hsy`'s always-present Harnessy builtin from fixed HTTP/token access to the same stdio MCP entrypoint; Executor owns daemon startup, runtimes, and state.
+- Updated fresh-user/runtime help to remove the manual-engine prerequisite.
+- Focused core tests passed 8/8 and the coding-agent builtin tests passed 5/5.
+- Rebuilt the linked development packages and ran the actual global `hsy` TUI in tmux.
+- In natural language, `hsy` discovered `executor.mcp.addServer`, registered `@modelcontextprotocol/server-everything`, requested in-terminal approvals, created a no-auth connection, discovered `get_sum`, and returned `21 + 21 = 42`.
+- Closed the interactive TUI and confirmed the Executor-owned daemon remained running in the background.
+- Re-read the complete changed builtin, launcher, `hsy` environment, MCP installer, cockpit registration, and focused regression-test files before final verification.
+- Re-verified every original review site: root `engines`, fresh `hsy` entrypoint, cockpit auth command, AnyType health classification, Windows `npx.cmd`, npx-level `--yes`, fresh AnyType registration with pinned version, Harnessy-only gating, and stateful retry protection.
+- Removed the temporary synthetic MCP harness after replacing it with the real `hsy` run.
+- `git diff --check` passed and the index is empty; `.pi/todos/` remains untracked and out of scope.
+- Replaced the stale root `hsy:web` Vite shortcut with canonical `harnessy web` and updated the README so first use is conversational, cockpit is optional, state is Executor-owned, and external agents install stdio without token copying.
+- Repository-wide stale-path search now finds no old `engine-dev`, fixed HTTP engine, `mcp serve`, or mandatory-`harnessy web` guidance outside the intentional removal assertion in a test.
+- Verified `@harnessy/core` resolves the exact direct dependency `executor@1.5.33`, with matching package-lock entries.
+- Confirmed the requested target is local `dev` at `cdcd253d` / `origin/dev`; the working branch is `feat/vendor-executor` with uncommitted implementation and `.pi/todos/` excluded.
+- Deferred the single full repository check until the concurrent `@harnessy/engine` and preset jobs finish their shared package/lockfile fixes, avoiding duplicate high-memory validation.
+- Concurrent engine validation now builds its bundled ESM/declarations successfully; its packed Cloudflare consumer fixture is being corrected for Worker type-version and declaration compatibility before the shared check.
+- Concurrent preset work replaced the unsupported Slack Swagger 2.0 source with an OpenAPI 3.0 source and re-passed package typecheck, lint, and 9 tests; its auth-flow reviewer is still closing the remaining blocker.
+- Full `npm run check` passed across 903 files, pinned dependencies, TS import/workspace checks, shrinkwrap/install lock, root typecheck, Harnessy lint, and browser smoke. Biome formatted four files during the successful run.

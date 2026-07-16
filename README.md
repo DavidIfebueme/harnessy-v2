@@ -69,22 +69,27 @@ hsy
 Auth and settings live in `~/.hsy/agent` — your existing `~/.pi/agent` state is
 never touched.
 
-### 3. Start the engine cockpit
+### 3. Use the built-in engine
 
-The engine is what holds your integrations. Start it once:
+Open `hsy` and ask for an outcome. Executor is built in and starts its stdio
+MCP entrypoint on the first connector request; it owns runtime selection,
+background daemon lifecycle, and state under `~/.executor`:
 
-```bash
-harnessy web
+```text
+hsy
+What integrations are connected?
 ```
 
-It prints a one-time authenticated URL (`http://127.0.0.1:4788/?_token=...`) —
-open it. The engine keeps its state (integrations, connections, runs, policies,
-bearer token) in `~/.harnessy/engine-dev`; use `--port` / `--data-dir` to
-relocate it.
+No separate engine command is required. Run `harnessy web` only when you want
+the cockpit for browser handoffs, connection setup, approvals, or audit. It
+starts or attaches Executor, registers Harnessy's bundled AnyType integration,
+and opens the authenticated URL. Use `--port`, `--data-dir`, or `--scope` when
+you need explicit cockpit settings.
 
 ### 4. Connect your first integration
 
-In the cockpit, add an integration from any of three sources:
+Ask the agent directly, for example `Connect my Google Calendar`, or open the
+cockpit and add an integration from any of three sources:
 
 - **Preset registry** — thousands of ready-made API definitions; search, pick, done.
 - **OpenAPI spec** — paste or upload a spec for any HTTP API.
@@ -112,9 +117,10 @@ Under the hood the agent uses three built-in tools, and one command:
 | `harnessy_execute` | Run code against the connected tool catalog (through policy, credentials, audit) |
 | `harnessy_skills` | Fetch the engine's own how-to guide |
 | `harnessy_resume` | Approve, decline, or cancel a run paused for approval |
-| `/harnessy` | Engine status: token, reachability, usage |
+| `/harnessy` | Executor reachability and usage |
 
-If the engine is down, the tools say so and tell you to run `harnessy web`.
+If Executor cannot start, the tools report the bundled launch failure without
+requiring the user to know or start a separate service.
 
 ### 6. Wire the engine into other agents (optional)
 
@@ -127,7 +133,8 @@ harnessy mcp install --agent cursor   # or pick one; repeatable
 harnessy mcp install --print          # show the command instead of running it
 ```
 
-It reads the engine's bearer token itself — no copying secrets around.
+This registers bundled `executor mcp` over stdio. Each agent starts or attaches
+the same Executor-owned daemon; there is no bearer token to copy.
 
 ### 7. Try the AnyType connector (optional)
 
@@ -224,7 +231,7 @@ harnessy skill list
 harnessy skill metrics compute <name>
 
 # Engine
-harnessy web [--port] [--data-dir]
+harnessy web [--port] [--data-dir] [--scope]
 harnessy mcp install [--agent <a>] [--global] [--yes] [--print]
 
 # AnyType connector

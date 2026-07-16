@@ -24,10 +24,13 @@ describe("configureHsyRuntimeEnv", () => {
 			HSY_CODING_AGENT_DIR: "/tmp/custom-hsy",
 			PI_CODING_AGENT_DIR: "/home/tester/.pi/agent",
 			PI_CONFIG_DIR: ".pi",
+			EXECUTOR_DATA_DIR: "/tmp/executor-owned",
 		};
 
 		expect(configureHsyRuntimeEnv(env, "/home/tester")).toBe("/tmp/custom-hsy");
 		expect(env.PI_CODING_AGENT_DIR).toBe("/tmp/custom-hsy");
 		expect(env.PI_CONFIG_DIR).toBe(".hsy");
+		expect(env.EXECUTOR_DATA_DIR).toBe("/tmp/executor-owned");
+		expect(env.HARNESSY_ENGINE_DATA_DIR).toBeUndefined();
 	});
 });

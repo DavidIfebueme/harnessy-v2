@@ -8,8 +8,8 @@ import { DefaultResourceLoader } from "../src/core/resource-loader.ts";
 /**
  * The suite-wide setup disables the harnessy-engine builtin so upstream
  * fixture tests stay exact; this file re-enables it and covers the builtin:
- * it ships with the loader itself (no configuration), and its tools fail
- * with actionable guidance when the engine has never been started.
+ * it ships with the loader itself (no configuration), and invokes Executor's
+ * stdio MCP entrypoint directly when a tool is first used.
  */
 describe("builtin harnessy-engine extension", () => {
 	let tempDir: string;
@@ -17,7 +17,8 @@ describe("builtin harnessy-engine extension", () => {
 	let cwd: string;
 	let savedEngineFlag: string | undefined;
 	let savedRuntimeFlag: string | undefined;
-	let savedDataDir: string | undefined;
+	let savedExecutorCommand: string | undefined;
+	let savedExecutorArgs: string | undefined;
 
 	beforeEach(() => {
 		tempDir = join(tmpdir(), `harnessy-builtin-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -27,11 +28,12 @@ describe("builtin harnessy-engine extension", () => {
 		mkdirSync(cwd, { recursive: true });
 		savedEngineFlag = process.env.HARNESSY_ENGINE;
 		savedRuntimeFlag = process.env.HARNESSY_PI_RUNTIME;
-		savedDataDir = process.env.HARNESSY_ENGINE_DATA_DIR;
+		savedExecutorCommand = process.env.HARNESSY_EXECUTOR_COMMAND;
+		savedExecutorArgs = process.env.HARNESSY_EXECUTOR_ARGS;
 		process.env.HARNESSY_ENGINE = "1";
 		process.env.HARNESSY_PI_RUNTIME = "true";
-		// An empty data dir means no engine has ever run: token file is absent.
-		process.env.HARNESSY_ENGINE_DATA_DIR = join(tempDir, "engine-data");
+		process.env.HARNESSY_EXECUTOR_COMMAND = join(tempDir, "missing-executor");
+		process.env.HARNESSY_EXECUTOR_ARGS = JSON.stringify(["mcp"]);
 	});
 
 	afterEach(() => {
@@ -45,10 +47,15 @@ describe("builtin harnessy-engine extension", () => {
 		} else {
 			process.env.HARNESSY_PI_RUNTIME = savedRuntimeFlag;
 		}
-		if (savedDataDir === undefined) {
-			delete process.env.HARNESSY_ENGINE_DATA_DIR;
+		if (savedExecutorCommand === undefined) {
+			delete process.env.HARNESSY_EXECUTOR_COMMAND;
 		} else {
-			process.env.HARNESSY_ENGINE_DATA_DIR = savedDataDir;
+			process.env.HARNESSY_EXECUTOR_COMMAND = savedExecutorCommand;
+		}
+		if (savedExecutorArgs === undefined) {
+			delete process.env.HARNESSY_EXECUTOR_ARGS;
+		} else {
+			process.env.HARNESSY_EXECUTOR_ARGS = savedExecutorArgs;
 		}
 		rmSync(tempDir, { recursive: true, force: true });
 	});
@@ -95,7 +102,7 @@ describe("builtin harnessy-engine extension", () => {
 		expect(harnessyEngineToolCanRetry("resume")).toBe(false);
 	});
 
-	it("fails tool calls with harnessy web guidance when the engine has never started", async () => {
+	it("starts the configured Executor MCP entrypoint on first tool use", async () => {
 		const loader = new DefaultResourceLoader({ cwd, agentDir });
 		await loader.reload();
 
@@ -107,6 +114,6 @@ describe("builtin harnessy-engine extension", () => {
 
 		await expect(
 			execute!.definition.execute("test-call", { code: "1" }, undefined, undefined, {} as never),
-		).rejects.toThrow(/harnessy web/);
+		).rejects.toThrow(/Bundled Executor could not start/);
 	});
 });

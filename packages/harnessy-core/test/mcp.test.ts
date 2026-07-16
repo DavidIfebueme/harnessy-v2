@@ -6,24 +6,32 @@ describe("MCP installer invocation", () => {
 	it("passes noninteractive approval to npx before the package and to add-mcp after it", () => {
 		expect(
 			buildMcpInstallArgs({
-				endpoint: "http://127.0.0.1:4788/mcp",
-				token: "engine-token",
-				agents: ["claude"],
+				command: "/usr/bin/node",
+				commandArgs: ["/app/node_modules/executor/bin/executor", "mcp", "--elicitation-mode", "model"],
+				agents: ["claude", "gemini", "codex"],
 				userLevel: true,
 				yes: true,
 			}),
 		).toEqual([
 			"--yes",
 			"add-mcp",
-			"http://127.0.0.1:4788/mcp",
-			"--transport",
-			"http",
+			"/usr/bin/node",
 			"--name",
-			"harnessy",
-			"--header",
-			"Authorization: Bearer engine-token",
+			"executor",
+			"--args",
+			"/app/node_modules/executor/bin/executor",
+			"--args",
+			"mcp",
+			"--args",
+			"--elicitation-mode",
+			"--args",
+			"model",
 			"--agent",
-			"claude",
+			"claude-code",
+			"--agent",
+			"gemini-cli",
+			"--agent",
+			"codex",
 			"--global",
 			"--yes",
 		]);
@@ -31,13 +39,14 @@ describe("MCP installer invocation", () => {
 
 	it("omits both approval flags for interactive installs", () => {
 		const args = buildMcpInstallArgs({
-			endpoint: "http://127.0.0.1:4788/mcp",
-			token: "engine-token",
+			command: "executor",
+			commandArgs: ["mcp"],
 			agents: [],
 			userLevel: false,
 			yes: false,
 		});
 		expect(args[0]).toBe("add-mcp");
+		expect(args.slice(1, 5)).toEqual(["executor", "--name", "executor", "--args"]);
 		expect(args).not.toContain("--yes");
 	});
 });

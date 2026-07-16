@@ -12,18 +12,21 @@ or agent touches goes through one of these surfaces:
 | CLI | `harnessy` | Operate the product from the terminal or scripts |
 | Cockpit | `harnessy web` → http://127.0.0.1:4788 | Connect integrations, approve runs, inspect audit |
 
-External agents (Claude Code, Cursor, OpenCode, ...) get a fourth door: the
-engine's MCP endpoint, registered with `harnessy mcp install`.
+External agents (Claude Code, Codex, Cursor, OpenCode, ...) get a fourth door:
+bundled Executor's standard stdio MCP server, registered with
+`harnessy mcp install`.
 
 ## The engine
 
-- **What runs**: the vendored Executor local app (`executor/apps/local`),
-  started by `harnessy web` (or `npm run hsy:web`). It serves the cockpit UI,
-  the `/api` surface, and the `/mcp` endpoint on one port (default `4788`).
-- **Data dir**: `~/.harnessy/engine-dev` by default (`--data-dir` /
-  `EXECUTOR_DATA_DIR` override). Holds the SQLite store (integrations,
+- **What runs**: the bundled Executor binary. Its npm wrapper selects the
+  compiled runtime for the current OS, CPU, and libc. `executor mcp` attaches
+  to an existing local owner or starts its background daemon on first use. The
+  daemon serves the cockpit UI, `/api`, and `/mcp` on one elected local port;
+  `harnessy web` prefers `4788` unless `--port` overrides it.
+- **Data dir**: `~/.executor` by default (`EXECUTOR_DATA_DIR` override).
+  Executor owns this state and lifecycle. It holds the SQLite store (integrations,
   connections, runs, policies) and `server-control/auth.json`, the bearer
-  token every client presents.
+  token used by HTTP clients.
 - **Tool addresses**: `tools.<integration>.<owner>.<connection>.<tool>` —
   policy decisions and audit records attach to these addresses.
 - **Vendoring contract**: upstream source stays verbatim except the logged
@@ -37,11 +40,11 @@ config in `~/.hsy/agent`). Anything after `hsy` that is not a package command
 
 ### Built-in engine tools
 
-Every session ships three engine tools, compiled into
+Every Harnessy session ships three engine tools, compiled into
 `packages/coding-agent/src/core/extensions/builtin/harnessy-engine.ts` — no
-MCP registration, no token copying. The bearer token is read from the engine
-data dir at call time; when the engine is down the tools stay registered and
-fail with instructions to run `harnessy web`.
+MCP registration, token copying, or separate startup command. The bridge starts
+bundled `executor mcp` lazily. Executor performs race-safe daemon election and
+the tools remain registered if startup fails.
 
 | Tool | Purpose |
 | --- | --- |
@@ -49,14 +52,13 @@ fail with instructions to run `harnessy web`.
 | `harnessy_skills` | Fetch the engine's own how-to guide (`{ name: "execute" }` for the full walkthrough) |
 | `harnessy_resume` | Accept, decline, or cancel a run paused for approval |
 
-`/harnessy` (slash command) reports token presence, engine reachability, and
-usage. The MCP session uses `elicitation_mode=model`, so approval pauses come
+`/harnessy` (slash command) reports Executor reachability and usage. The MCP
+session uses `elicitation_mode=model`, so approval pauses come
 back as an `executionId` the model resumes in-band after asking the user.
 
 Environment:
 
-- `HARNESSY_ENGINE_URL` — engine base URL (default `http://127.0.0.1:4788`)
-- `HARNESSY_ENGINE_DATA_DIR` — engine data dir (default `~/.harnessy/engine-dev`)
+- `HARNESSY_EXECUTOR_BIN` — optional override for the bundled Executor binary
 - `HARNESSY_ENGINE=0` — disable the builtin entirely (set suite-wide in
   `packages/coding-agent/vitest.config.ts` so upstream tool-list fixtures stay
   exact; `builtin-harnessy-engine.test.ts` re-enables and covers it)
@@ -64,8 +66,9 @@ Environment:
 ### Fresh-user sandbox
 
 `./hsy-fresh.sh` (or `npm run hsy:fresh`) launches the agent under a throwaway
-HOME: no personal `~/.pi` / `~/.agents` / `~/.harnessy` state leaks in, and the
-engine sandbox is scoped alongside. It seeds the out-of-the-box package set
+HOME: no personal `~/.pi` / `~/.agents` / `~/.executor` state leaks in.
+Executor creates its own isolated state under that HOME on first use. The script
+seeds the out-of-the-box package set
 (`pi-subagents`, `pi-web-access`, `@juicesharp/rpiv-ask-user-question`,
 `pi-agent-browser-native`) and prints the matching sandboxed cockpit command.
 `HSY_FRESH_DIR=<dir>` re-enters a previous sandbox.
@@ -75,14 +78,13 @@ engine sandbox is scoped alongside. It seeds the out-of-the-box package set
 The second binary in `@harnessy/core`. `harnessy --help` lists everything;
 the engine-facing commands are:
 
-- **`harnessy web [--port] [--data-dir]`** — run the cockpit from the vendored
-  tree (walks up from cwd to find `executor/apps/local`; prints a one-time
-  `?_token=` auth URL).
-- **`harnessy mcp install [--agent <a>] [--global] [--yes] [--print] [--url]
-  [--port] [--data-dir]`** — register the engine as MCP server `harnessy` for
-  an external agent. Reads the bearer token itself from the engine data dir
-  and shells out to `npx add-mcp`. `--print` shows the command instead of
-  running it; `--yes` is required outside a TTY.
+- **`harnessy web [--port] [--data-dir] [--scope]`** — start or attach the
+  bundled Executor daemon, idempotently register Harnessy's AnyType spec, and
+  open Executor's authenticated cockpit URL.
+- **`harnessy mcp install [--agent <a>] [--global] [--yes] [--print]`** —
+  register bundled `executor mcp` directly with an external agent through
+  `add-mcp`. `--print` shows the command; `--yes` approves both npx package
+  acquisition and add-mcp's noninteractive flow.
 - **`harnessy connector anytype discover [--json]`** — readiness evidence:
   key presence, loopback check, live probe (3s timeout), and the capability
   table (readable/mutable per capability, with reasons). Missing key or an
