@@ -9,8 +9,8 @@ import {
 	type SessionMeta,
 } from "@harnessy/engine/cloudflare";
 
-interface Env extends Cloudflare.Env {
-	readonly HARNESSY_ENGINE_BLOBS: R2Bucket;
+interface Env {
+	readonly HARNESSY_ENGINE_BLOBS: HarnessyEngineR2Bucket;
 }
 
 const codeExecutor: CodeExecutor = {
@@ -69,7 +69,7 @@ const worker = makeHarnessyEngineWorker({
 		acquire: () => Effect.succeed(fakePostgresHandle()),
 	},
 	r2: {
-		bucket: (env: Env) => env.HARNESSY_ENGINE_BLOBS as unknown as HarnessyEngineR2Bucket,
+		bucket: (env: Env) => env.HARNESSY_ENGINE_BLOBS,
 	},
 	plugins: { api: [] as const },
 	codeExecutor,

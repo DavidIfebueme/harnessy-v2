@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 const packageRoot = resolve(new URL("..", import.meta.url).pathname);
 const fixtureSource = join(packageRoot, "test/fixtures/cloudflare-worker");
+const allowedRuntimeExternal = /^(?:node:|cloudflare:)/;
+const staticImportSpecifier = /^\s*(?:import|export)\s+(?:[^"']*?\s+from\s*)?(["'])([^"']+)\1/gm;
 const temporaryRoot = await mkdtemp(join(tmpdir(), "harnessy-engine-fixture-"));
 const fixtureRoot = join(temporaryRoot, "consumer");
 const artifactRoot = join(temporaryRoot, "artifacts");
@@ -60,8 +62,11 @@ try {
     const path = join(outputRoot, file);
     if (!file.endsWith(".js")) continue;
     const source = await readFile(path, "utf8");
-    if (/\b(?:import|export)\s+[^"']*?from\s+["'](?:@executor-js\/|effect(?:\/|["']))/.test(source)) {
-      throw new Error(`Wrangler output ${file} leaked an external Executor or Effect runtime import`);
+    for (const match of source.matchAll(staticImportSpecifier)) {
+      const specifier = match[2];
+      if (!allowedRuntimeExternal.test(specifier)) {
+        throw new Error(`Wrangler output ${file} leaked bare runtime import ${specifier}`);
+      }
     }
   }
   console.log(
