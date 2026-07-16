@@ -4,7 +4,8 @@
  * The Harnessy engine (the vendored Executor) exposes its entire connected
  * tool catalog — integrations, connections, policies, approvals, audit —
  * through one small MCP surface: `execute`, `skills`, and `resume`. This
- * builtin hardwires that surface into every session as `harnessy_*` tools.
+ * builtin hardwires that surface into every Harnessy session as `harnessy_*`
+ * tools.
  * The engine and this agent are one product, so no MCP registration or
  * token copying is required: the bearer token is read from the engine's own
  * data directory at call time.
@@ -17,6 +18,7 @@
  * Environment overrides:
  * - `HARNESSY_ENGINE_URL`      engine base URL (default http://127.0.0.1:4788)
  * - `HARNESSY_ENGINE_DATA_DIR` engine data dir (default ~/.harnessy/engine-dev)
+ * - `HARNESSY_PI_RUNTIME=true` enable the builtin for the Harnessy entrypoint
  * - `HARNESSY_ENGINE=0`        disable the builtin entirely
  */
 
@@ -33,6 +35,10 @@ import type { ExtensionAPI } from "../types.ts";
 const DEFAULT_ENGINE_PORT = 4788;
 /** Engine `execute` runs may do real work (API calls, pauses); give them room. */
 const CALL_TIMEOUT_MS = 600_000;
+
+export function harnessyEngineToolCanRetry(tool: string): boolean {
+	return tool === "skills";
+}
 
 function engineBaseUrl(): string {
 	const fromEnv = process.env.HARNESSY_ENGINE_URL?.trim();
@@ -84,8 +90,9 @@ async function callEngine(
 	args: Record<string, unknown>,
 	signal: AbortSignal | undefined,
 ): Promise<{ content: (TextContent | ImageContent)[] }> {
-	// Lazy shared session; a dead connection is dropped and retried once so a
-	// restarted engine does not require restarting the agent.
+	// Lazy shared session. Only the read-only skills lookup may be replayed after
+	// an ambiguous transport failure; execute and resume can mutate external
+	// state, so retrying them could duplicate side effects.
 	const attempt = async (): Promise<Awaited<ReturnType<Client["callTool"]>>> => {
 		clientPromise ??= connectClient().catch((error: unknown) => {
 			clientPromise = null;
@@ -105,6 +112,7 @@ async function callEngine(
 	} catch (error) {
 		if (signal?.aborted) throw error;
 		clientPromise = null;
+		if (!harnessyEngineToolCanRetry(tool)) throw error;
 		result = await attempt();
 	}
 
@@ -221,7 +229,7 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 	});
 }
 
-/** True unless the builtin is explicitly disabled via HARNESSY_ENGINE=0. */
+/** True only for Harnessy sessions unless explicitly disabled. */
 export function harnessyEngineEnabled(): boolean {
-	return process.env.HARNESSY_ENGINE !== "0";
+	return process.env.HARNESSY_PI_RUNTIME === "true" && process.env.HARNESSY_ENGINE !== "0";
 }

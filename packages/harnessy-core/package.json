@@ -31,6 +31,7 @@
 	"files": [
 		"dist",
 		"fixtures",
+		"resources",
 		"README.md"
 	],
 	"scripts": {
@@ -42,12 +43,14 @@
 	"dependencies": {
 		"@earendil-works/pi-coding-agent": "0.80.3",
 		"@effect/platform-node": "4.0.0-beta.85",
+		"cross-spawn": "7.0.6",
 		"effect": "4.0.0-beta.85",
 		"shell-quote": "1.8.4",
 		"yaml": "2.9.0"
 	},
 	"devDependencies": {
 		"@effect/vitest": "4.0.0-beta.85",
+		"@types/cross-spawn": "6.0.6",
 		"@types/shell-quote": "1.7.5",
 		"shx": "0.4.0",
 		"vitest": "4.1.9"

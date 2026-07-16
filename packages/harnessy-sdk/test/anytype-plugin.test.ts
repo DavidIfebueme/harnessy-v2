@@ -99,4 +99,71 @@ describe("Harnessy AnyType engine plugin", () => {
 			}),
 		),
 	);
+
+	it.effect("returns health results for invalid connection settings without contacting AnyType", () =>
+		Effect.scoped(
+			Effect.gen(function* () {
+				const http = makeAnytypeHttpLayer();
+				const memoryProvider = makeMemoryProvider();
+				let resolveEmptyCredential = false;
+				const originalGet = memoryProvider.get;
+				const credentialProvider: CredentialProvider = {
+					...memoryProvider,
+					get: (id) => (resolveEmptyCredential ? Effect.succeed("") : originalGet(id)),
+				};
+				const executor = yield* Effect.acquireRelease(
+					createExecutor({
+						tenant: Tenant.make("sdk-health-test"),
+						onElicitation: "accept-all",
+						plugins: [harnessyAnytypePlugin()] as const,
+						providers: [credentialProvider],
+						httpClientLayer: http.layer,
+					}),
+					(executor) => executor.close().pipe(Effect.orDie),
+				);
+				yield* executor["harnessy-anytype"].register();
+				const missingConnection = yield* executor.connections.create({
+					owner: "org",
+					name: ConnectionName.make("missing-key"),
+					integration: IntegrationSlug.make("anytype"),
+					template: AuthTemplateSlug.make("anytype"),
+					values: { apiKey: "initial-key" },
+				});
+				const unsafeConnection = yield* executor.connections.create({
+					owner: "org",
+					name: ConnectionName.make("unsafe-url"),
+					integration: IntegrationSlug.make("anytype"),
+					template: AuthTemplateSlug.make("anytype"),
+					values: {
+						apiKey: "secret-key",
+						baseUrl: "https://anytype.example.com",
+						allowRemote: "false",
+					},
+				});
+
+				resolveEmptyCredential = true;
+				const missingKey = yield* executor.connections.checkHealth({
+					owner: "org",
+					integration: IntegrationSlug.make("anytype"),
+					name: missingConnection.name,
+				});
+				resolveEmptyCredential = false;
+				const unsafeUrl = yield* executor.connections.checkHealth({
+					owner: "org",
+					integration: IntegrationSlug.make("anytype"),
+					name: unsafeConnection.name,
+				});
+
+				expect(missingKey).toMatchObject({
+					status: "expired",
+					detail: "AnyType connection is missing apiKey.",
+				});
+				expect(unsafeUrl).toMatchObject({
+					status: "degraded",
+					detail: "Refusing to send the AnyType API key to non-loopback URL https://anytype.example.com.",
+				});
+				expect(http.requests).toEqual([]);
+			}),
+		),
+	);
 });

@@ -74,7 +74,7 @@
 		"tsx": "4.22.1",
 		"typescript": "5.9.3"
 	},
-	"executors": {
+	"engines": {
 		"node": ">=22.19.0"
 	},
 	"version": "0.0.3",

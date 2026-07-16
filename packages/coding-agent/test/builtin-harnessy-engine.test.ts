@@ -2,6 +2,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { harnessyEngineToolCanRetry } from "../src/core/extensions/builtin/harnessy-engine.ts";
 import { DefaultResourceLoader } from "../src/core/resource-loader.ts";
 
 /**
@@ -15,6 +16,7 @@ describe("builtin harnessy-engine extension", () => {
 	let agentDir: string;
 	let cwd: string;
 	let savedEngineFlag: string | undefined;
+	let savedRuntimeFlag: string | undefined;
 	let savedDataDir: string | undefined;
 
 	beforeEach(() => {
@@ -24,14 +26,25 @@ describe("builtin harnessy-engine extension", () => {
 		mkdirSync(agentDir, { recursive: true });
 		mkdirSync(cwd, { recursive: true });
 		savedEngineFlag = process.env.HARNESSY_ENGINE;
+		savedRuntimeFlag = process.env.HARNESSY_PI_RUNTIME;
 		savedDataDir = process.env.HARNESSY_ENGINE_DATA_DIR;
 		process.env.HARNESSY_ENGINE = "1";
+		process.env.HARNESSY_PI_RUNTIME = "true";
 		// An empty data dir means no engine has ever run: token file is absent.
 		process.env.HARNESSY_ENGINE_DATA_DIR = join(tempDir, "engine-data");
 	});
 
 	afterEach(() => {
-		process.env.HARNESSY_ENGINE = savedEngineFlag;
+		if (savedEngineFlag === undefined) {
+			delete process.env.HARNESSY_ENGINE;
+		} else {
+			process.env.HARNESSY_ENGINE = savedEngineFlag;
+		}
+		if (savedRuntimeFlag === undefined) {
+			delete process.env.HARNESSY_PI_RUNTIME;
+		} else {
+			process.env.HARNESSY_PI_RUNTIME = savedRuntimeFlag;
+		}
 		if (savedDataDir === undefined) {
 			delete process.env.HARNESSY_ENGINE_DATA_DIR;
 		} else {
@@ -40,7 +53,7 @@ describe("builtin harnessy-engine extension", () => {
 		rmSync(tempDir, { recursive: true, force: true });
 	});
 
-	it("ships the harnessy tools with the loader itself, without any configuration", async () => {
+	it("ships the harnessy tools with the loader in a Harnessy runtime", async () => {
 		const loader = new DefaultResourceLoader({ cwd, agentDir });
 		await loader.reload();
 
@@ -56,6 +69,16 @@ describe("builtin harnessy-engine extension", () => {
 		expect(builtin?.commands.has("harnessy")).toBe(true);
 	});
 
+	it("is absent from ordinary Pi sessions", async () => {
+		delete process.env.HARNESSY_PI_RUNTIME;
+		const loader = new DefaultResourceLoader({ cwd, agentDir });
+		await loader.reload();
+
+		expect(loader.getExtensions().extensions.some((extension) => extension.path === "<inline:harnessy-engine>")).toBe(
+			false,
+		);
+	});
+
 	it("is absent when explicitly disabled with HARNESSY_ENGINE=0", async () => {
 		process.env.HARNESSY_ENGINE = "0";
 		const loader = new DefaultResourceLoader({ cwd, agentDir });
@@ -64,6 +87,12 @@ describe("builtin harnessy-engine extension", () => {
 		expect(loader.getExtensions().extensions.some((extension) => extension.path === "<inline:harnessy-engine>")).toBe(
 			false,
 		);
+	});
+
+	it("retries only the read-only skills call", () => {
+		expect(harnessyEngineToolCanRetry("skills")).toBe(true);
+		expect(harnessyEngineToolCanRetry("execute")).toBe(false);
+		expect(harnessyEngineToolCanRetry("resume")).toBe(false);
 	});
 
 	it("fails tool calls with harnessy web guidance when the engine has never started", async () => {

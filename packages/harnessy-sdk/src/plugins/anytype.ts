@@ -41,6 +41,7 @@ export class AnytypeConnectionConfigError extends Schema.TaggedErrorClass<Anytyp
 	"AnytypeConnectionConfigError",
 	{
 		message: Schema.String,
+		reason: Schema.Literals(["missing-credential", "unsafe-base-url", "unknown-tool"]),
 	},
 ) {}
 
@@ -131,11 +132,15 @@ const settingsFromCredential = Effect.fn("HarnessyAnytype.settingsFromCredential
 	const baseUrl = credential.values.baseUrl ?? ANYTYPE_DEFAULT_BASE_URL;
 	const allowRemote = credential.values.allowRemote === "true";
 	if (apiKey === null || apiKey.trim() === "") {
-		return yield* new AnytypeConnectionConfigError({ message: "AnyType connection is missing apiKey." });
+		return yield* new AnytypeConnectionConfigError({
+			message: "AnyType connection is missing apiKey.",
+			reason: "missing-credential",
+		});
 	}
 	if (!allowRemote && !isLoopbackUrl(baseUrl)) {
 		return yield* new AnytypeConnectionConfigError({
 			message: `Refusing to send the AnyType API key to non-loopback URL ${baseUrl}.`,
+			reason: "unsafe-base-url",
 		});
 	}
 	return { apiKey, baseUrl, allowRemote } satisfies AnytypeConnectionSettings;
@@ -251,7 +256,10 @@ const invokeAnytypeTool = Effect.fn("HarnessyAnytype.invokeTool")(function* (
 			);
 		}
 		default:
-			return yield* new AnytypeConnectionConfigError({ message: `Unknown AnyType tool ${name}.` });
+			return yield* new AnytypeConnectionConfigError({
+				message: `Unknown AnyType tool ${name}.`,
+				reason: "unknown-tool",
+			});
 	}
 });
 
@@ -263,16 +271,25 @@ const healthCandidate: HealthCheckCandidate = {
 	summary: "List spaces to verify AnyType reachability and credentials.",
 };
 
-const healthResultForError = (error: ConnectorReadError, checkedAt: number): HealthCheckResult => ({
-	status: error instanceof ConnectorAuthError || error instanceof ConnectorAuthorizationError ? "expired" : "degraded",
-	checkedAt,
-	detail: error.message,
-	...(error instanceof ConnectorAuthError || error instanceof ConnectorAuthorizationError
-		? { httpStatus: error.status }
-		: error instanceof ConnectorTransportError
-			? {}
-			: {}),
-});
+const healthResultForError = (
+	error: ConnectorReadError | AnytypeConnectionConfigError,
+	checkedAt: number,
+): HealthCheckResult => {
+	const expired =
+		error instanceof ConnectorAuthError ||
+		error instanceof ConnectorAuthorizationError ||
+		(error instanceof AnytypeConnectionConfigError && error.reason === "missing-credential");
+	return {
+		status: expired ? "expired" : "degraded",
+		checkedAt,
+		detail: error.message,
+		...(error instanceof ConnectorAuthError || error instanceof ConnectorAuthorizationError
+			? { httpStatus: error.status }
+			: error instanceof ConnectorTransportError
+				? {}
+				: {}),
+	};
+};
 
 export const harnessyAnytypePlugin = definePlugin(() => ({
 	id: "harnessy-anytype" as const,
@@ -315,14 +332,16 @@ export const harnessyAnytypePlugin = definePlugin(() => ({
 					detail: "No supported AnyType health check configured.",
 				} satisfies HealthCheckResult;
 			}
-			const settings = yield* settingsFromCredential(credential);
-			return yield* provideAnytype(
-				Effect.gen(function* () {
-					return yield* (yield* KnowledgeSpaces).list();
-				}),
-				settings,
-				ctx.httpClientLayer,
-			).pipe(
+			return yield* Effect.gen(function* () {
+				const settings = yield* settingsFromCredential(credential);
+				return yield* provideAnytype(
+					Effect.gen(function* () {
+						return yield* (yield* KnowledgeSpaces).list();
+					}),
+					settings,
+					ctx.httpClientLayer,
+				);
+			}).pipe(
 				Effect.match({
 					onFailure: (error) => healthResultForError(error, checkedAt),
 					onSuccess: () => ({ status: "healthy", checkedAt }) satisfies HealthCheckResult,

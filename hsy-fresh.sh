@@ -2,7 +2,7 @@
 # Launch the Harnessy agent as a brand-new user would see it.
 #
 # HOME is pointed at a throwaway sandbox, so nothing personal leaks in:
-# no ~/.pi settings/extensions/packages, no ~/.agents skills, no ~/.harnessy
+# no ~/.hsy settings/extensions/packages, no ~/.agents skills, no ~/.harnessy
 # engine data, no provider auth.json. Provider API keys from the environment
 # still apply (a fresh user would export those too); add --no-env semantics
 # by unsetting them yourself if you want a fully keyless run.
@@ -24,9 +24,9 @@ mkdir -p "$FRESH_DIR/project"
 # first launch (installed into the sandbox's own npm root — first run needs
 # network and a minute; pi-agent-browser-native may download a browser).
 # The harnessy_* engine tools are compiled in and need no package.
-if [[ ! -f "$FRESH_DIR/.pi/agent/settings.json" ]]; then
-	mkdir -p "$FRESH_DIR/.pi/agent"
-	cat >"$FRESH_DIR/.pi/agent/settings.json" <<'JSON'
+if [[ ! -f "$FRESH_DIR/.hsy/agent/settings.json" ]]; then
+	mkdir -p "$FRESH_DIR/.hsy/agent"
+	cat >"$FRESH_DIR/.hsy/agent/settings.json" <<'JSON'
 {
 	"packages": [
 		"npm:pi-subagents",
@@ -47,4 +47,4 @@ cd "$FRESH_DIR/project"
 HOME="$FRESH_DIR" \
 	HARNESSY_ENGINE_DATA_DIR="$FRESH_DIR/.harnessy/engine-dev" \
 	exec "$SCRIPT_DIR/node_modules/.bin/tsx" --tsconfig "$SCRIPT_DIR/tsconfig.json" \
-	"$SCRIPT_DIR/packages/coding-agent/src/cli.ts" "$@"
+	"$SCRIPT_DIR/packages/harnessy-core/src/hsy.ts" "$@"

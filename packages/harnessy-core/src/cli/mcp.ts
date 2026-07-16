@@ -1,8 +1,9 @@
-import { spawn } from "node:child_process";
+import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
+import crossSpawn from "cross-spawn";
 
 import { Console, Schema } from "effect";
 import * as Effect from "effect/Effect";
@@ -51,11 +52,34 @@ const printFlag = Flag.boolean("print").pipe(
 
 const yesFlag = Flag.boolean("yes").pipe(
 	Flag.withDefault(false),
-	Flag.withDescription("Skip add-mcp's interactive confirmation (needed outside a TTY)"),
+	Flag.withDescription("Skip npx and add-mcp interactive confirmations (needed outside a TTY)"),
 );
 
 const shellQuote = (value: string): string =>
 	/^[A-Za-z0-9_/:=@%+.,-]+$/.test(value) ? value : `'${value.replace(/'/g, `'"'"'`)}'`;
+
+export interface McpInstallArgsOptions {
+	readonly endpoint: string;
+	readonly token: string;
+	readonly agents: readonly string[];
+	readonly userLevel: boolean;
+	readonly yes: boolean;
+}
+
+export const buildMcpInstallArgs = ({ endpoint, token, agents, userLevel, yes }: McpInstallArgsOptions): string[] => [
+	...(yes ? ["--yes"] : []),
+	"add-mcp",
+	endpoint,
+	"--transport",
+	"http",
+	"--name",
+	"harnessy",
+	"--header",
+	`Authorization: Bearer ${token}`,
+	...agents.flatMap((agent) => ["--agent", agent]),
+	...(userLevel ? ["--global"] : []),
+	...(yes ? ["--yes"] : []),
+];
 
 const readEngineToken = (dataDir: string) =>
 	Effect.gen(function* () {
@@ -94,19 +118,7 @@ export const mcpInstallCommand = Command.make(
 			const endpoint = `${base.replace(/\/$/, "")}/mcp`;
 			const token = yield* readEngineToken(resolvedDataDir);
 
-			const args = [
-				"add-mcp",
-				endpoint,
-				"--transport",
-				"http",
-				"--name",
-				"harnessy",
-				"--header",
-				`Authorization: Bearer ${token}`,
-				...agents.flatMap((agent) => ["--agent", agent]),
-				...(userLevel ? ["--global"] : []),
-				...(yes ? ["--yes"] : []),
-			];
+			const args = buildMcpInstallArgs({ endpoint, token, agents, userLevel, yes });
 
 			if (print) {
 				yield* Console.log(`npx ${args.map(shellQuote).join(" ")}`);
@@ -115,7 +127,10 @@ export const mcpInstallCommand = Command.make(
 
 			yield* Console.log(`Registering the Harnessy engine (${endpoint}) with your agent...`);
 			const exitCode = yield* Effect.callback<number, HarnessError>((resume) => {
-				const child = spawn("npx", args, { stdio: "inherit", env: process.env });
+				const child =
+					process.platform === "win32"
+						? crossSpawn("npx", args, { stdio: "inherit", env: process.env })
+						: nodeSpawn("npx", args, { stdio: "inherit", env: process.env });
 				child.once("error", (error) =>
 					resume(Effect.fail(new HarnessError({ message: `Failed to run npx add-mcp: ${error.message}` }))),
 				);
