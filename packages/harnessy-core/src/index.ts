@@ -114,6 +114,7 @@ export {
 	UpdateTaskRequest,
 	UploadFileRequest,
 } from "./connectors/knowledge.ts";
+export { isLoopbackUrl } from "./connectors/loopback.ts";
 export {
 	NOTION_API_VERSION,
 	NOTION_DEFAULT_BASE_URL,

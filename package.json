@@ -38,12 +38,32 @@
 		"release:minor": "node scripts/release.mjs minor",
 		"release:major": "node scripts/release.mjs major",
 		"release:fix-links": "node scripts/release-notes.mjs fix-github-releases",
-		"prepare": "husky"
+		"prepare": "husky",
+		"hsy:web": "cd executor/apps/local && EXECUTOR_DATA_DIR=${EXECUTOR_DATA_DIR:-$HOME/.harnessy/engine-dev} PORT=${PORT:-4788} bunx --bun vite dev",
+		"hsy:fresh": "./hsy-fresh.sh"
+	},
+	"dependencies": {
+		"@cfworker/json-schema": "4.1.1",
+		"@libsql/client": "0.17.3",
+		"@modelcontextprotocol/sdk": "1.29.0",
+		"@paralleldrive/cuid2": "3.3.0",
+		"@standard-schema/spec": "1.1.0",
+		"drizzle-orm": "0.45.2",
+		"fractional-indexing": "3.2.0",
+		"js-yaml": "4.1.1",
+		"kysely": "0.28.17",
+		"oauth4webapi": "3.8.5",
+		"openapi-types": "12.1.3",
+		"semver": "7.8.0",
+		"tldts": "7.0.28",
+		"zod": "4.3.6"
 	},
 	"devDependencies": {
 		"@anthropic-ai/sandbox-runtime": "0.0.26",
 		"@biomejs/biome": "2.3.5",
+		"@types/js-yaml": "4.0.9",
 		"@types/node": "22.19.19",
+		"@types/semver": "7.7.1",
 		"@typescript/native-preview": "7.0.0-dev.20260120.1",
 		"esbuild": "0.28.1",
 		"husky": "9.1.7",

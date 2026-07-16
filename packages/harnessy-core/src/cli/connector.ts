@@ -2,12 +2,14 @@ import process from "node:process";
 
 import { Console } from "effect";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { Command } from "effect/unstable/cli";
 import { FetchHttpClient } from "effect/unstable/http";
 
 import { ANYTYPE_DEFAULT_BASE_URL, AnytypeConfig, anytypeKnowledgeLayer } from "../connectors/anytype.ts";
-import { KnowledgeObjects, KnowledgeSpaces } from "../connectors/knowledge.ts";
+import { KnowledgeCapabilities, KnowledgeObjects, KnowledgeSpaces } from "../connectors/knowledge.ts";
+import { isLoopbackUrl } from "../connectors/loopback.ts";
 import { HarnessError } from "../errors.ts";
 
 import {
@@ -19,13 +21,6 @@ import {
 	queryOption,
 	spaceOption,
 } from "./shared.ts";
-
-/** True when the URL points at the local machine (so it is safe to send the key). */
-export const isLoopbackUrl = (raw: string): boolean => {
-	if (!URL.canParse(raw)) return false;
-	const host = new URL(raw).hostname.replace(/^\[|\]$/g, "");
-	return host === "localhost" || host === "::1" || /^127(\.\d{1,3}){3}$/.test(host);
-};
 
 /** Resolve AnyType connection settings from flags, falling back to env. */
 export const resolveAnytype = (
@@ -134,9 +129,100 @@ export const anytypeGetCommand = Command.make(
 		),
 ).pipe(Command.withDescription("Fetch one AnyType object (markdown body by default)"));
 
+/**
+ * Readiness evidence for the AnyType backend (P8). Unlike the read commands,
+ * missing credentials or an unreachable app are EVIDENCE here, not failures:
+ * the command always succeeds and reports what an agent could actually do.
+ */
+export const anytypeDiscoverCommand = Command.make(
+	"discover",
+	{
+		apiKey: anytypeApiKeyOption,
+		anytypeUrl: anytypeUrlOption,
+		allowRemote: anytypeAllowRemoteOption,
+		json: jsonOption,
+	},
+	({ apiKey, anytypeUrl, allowRemote, json }) =>
+		Effect.gen(function* () {
+			const settings = resolveAnytype(apiKey, anytypeUrl, allowRemote);
+			const keyPresent = settings.apiKey !== "";
+			const loopback = isLoopbackUrl(settings.baseUrl);
+
+			const layer = anytypeKnowledgeLayer.pipe(
+				Layer.provide(AnytypeConfig.layer({ baseUrl: settings.baseUrl, apiKey: settings.apiKey })),
+				Layer.provide(FetchHttpClient.layer),
+			);
+
+			const report = yield* Effect.gen(function* () {
+				const capabilities = yield* KnowledgeCapabilities;
+				return yield* capabilities.discover();
+			}).pipe(Effect.provide(layer));
+
+			// Live probe: one bounded spaces read, every outcome folded into a
+			// human-actionable reachability verdict.
+			const reachability =
+				!loopback && !settings.allowRemote
+					? `skipped — ${settings.baseUrl} is not loopback and --allow-remote was not passed`
+					: yield* Effect.gen(function* () {
+							const spaces = yield* KnowledgeSpaces;
+							const listed = yield* spaces.list();
+							return keyPresent
+								? `reachable — authorized (${listed.length} spaces)`
+								: `reachable — responds without a key (${listed.length} spaces)`;
+						}).pipe(
+							Effect.provide(layer),
+							Effect.timeout("3 seconds"),
+							Effect.catch((error) =>
+								Effect.succeed(
+									error._tag === "ConnectorAuthError"
+										? "reachable — the app is running but rejected the key (pair AnyType and set ANYTYPE_API_KEY)"
+										: error._tag === "ConnectorTransportError"
+											? `unreachable — is the AnyType app running at ${settings.baseUrl}?`
+											: error._tag === "TimeoutError"
+												? `unreachable — no response from ${settings.baseUrl} within 3s`
+												: `failed — ${error._tag}`,
+								),
+							),
+						);
+
+			if (json) {
+				yield* Console.log(
+					JSON.stringify(
+						{
+							backend: report.backend,
+							baseUrl: settings.baseUrl,
+							apiKey: keyPresent ? "present" : "missing",
+							reachability,
+							capabilities: report.capabilities,
+						},
+						null,
+						2,
+					),
+				);
+				return;
+			}
+			yield* Console.log(`backend       ${report.backend}`);
+			yield* Console.log(`base url      ${settings.baseUrl}${loopback ? "" : "  (non-loopback)"}`);
+			yield* Console.log(
+				`api key       ${keyPresent ? "present" : "missing — set ANYTYPE_API_KEY or pass --api-key"}`,
+			);
+			yield* Console.log(`reachability  ${reachability}`);
+			yield* Console.log("");
+			for (const evidence of report.capabilities) {
+				const marks = `${evidence.readable ? "read" : "----"}/${evidence.mutable ? "write" : "-----"}`;
+				yield* Console.log(`  ${evidence.capability.padEnd(14)}${marks}  ${evidence.reason}`);
+			}
+		}),
+).pipe(Command.withDescription("Report AnyType capability evidence and live reachability"));
+
 /** AnyType connector subcommand group. */
 export const anytypeCommand = Command.make("anytype").pipe(
-	Command.withSubcommands([anytypeSpacesCommand, anytypeSearchCommand, anytypeGetCommand] as const),
+	Command.withSubcommands([
+		anytypeSpacesCommand,
+		anytypeSearchCommand,
+		anytypeGetCommand,
+		anytypeDiscoverCommand,
+	] as const),
 	Command.withDescription("Read from a local AnyType app via its API"),
 );
 
