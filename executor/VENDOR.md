@@ -103,9 +103,10 @@ every copied path):
   including its pinned `effect` — used ONLY when running the app
   self-contained.
 
-Start it from the repo root: `npm run hsy:web` (vite dev on
-`127.0.0.1:4788`, prints a one-time `?_token=` auth URL; engine data lives in
-`~/.harnessy/engine-dev` via `EXECUTOR_DATA_DIR`).
+`npm run build` produces `apps/local/dist`; then `npm run hsy:web` starts the
+vendored daemon on `127.0.0.1:4788`, serves those static assets, and opens its
+one-time `?_token=` auth URL. Normal Harnessy usage does not keep a Vite
+development server running.
 
 ### Runtime-split guard
 

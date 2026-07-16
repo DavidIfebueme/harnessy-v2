@@ -66,7 +66,7 @@ export const runExecutorBuiltin = (input: {
 				),
 			),
 		);
-		child.once("exit", (code) => finish(Effect.succeed(code ?? 0)));
+		child.once("exit", (code) => finish(Effect.succeed(code ?? 1)));
 		return Effect.sync(() => {
 			child.kill("SIGTERM");
 		});

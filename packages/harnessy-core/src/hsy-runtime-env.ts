@@ -20,6 +20,7 @@ export const HSY_HELP_EPILOGUE = `Harnessy Engine (built into every session):
     harnessy_skills    fetch the engine's own how-to guide
     harnessy_resume    approve, decline, or cancel a paused run
     /harnessy          in-session command: engine status and usage
+    /web               start/attach the engine and open the cockpit
 
   Engine environment:
     HARNESSY_EXECUTOR_BIN      - packaged Executor binary override

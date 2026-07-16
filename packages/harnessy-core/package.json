@@ -36,7 +36,7 @@
 	],
 	"scripts": {
 		"clean": "shx rm -rf dist",
-		"build": "tsgo -p tsconfig.build.json && shx chmod +x dist/cli.js dist/hsy.js",
+		"build": "bun run --cwd ../../executor/apps/local build && tsgo -p tsconfig.build.json && shx chmod +x dist/cli.js dist/hsy.js",
 		"test": "vitest --run",
 		"prepublishOnly": "npm run clean && npm run build"
 	},

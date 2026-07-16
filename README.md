@@ -36,9 +36,14 @@ git clone https://github.com/Flow-Research/harnessy-v2.git
 cd harnessy-v2
 
 npm install --ignore-scripts
+(cd executor && bun install --frozen-lockfile --ignore-scripts)
 npm run build
 npm --workspace @harnessy/core link
 ```
+
+The source checkout needs Bun to build the vendored Executor cockpit into
+`executor/apps/local/dist`. Published npm installs only need Node 22.19 or
+newer: Executor's platform binary is bundled and already contains the cockpit.
 
 Verify both binaries landed:
 
@@ -110,7 +115,7 @@ What integrations are connected?
 Search my AnyType notes for the Q3 roadmap.
 ```
 
-Under the hood the agent uses three built-in tools, and one command:
+Under the hood the agent uses three built-in tools and two commands:
 
 | Tool | Purpose |
 |------|---------|
@@ -118,6 +123,7 @@ Under the hood the agent uses three built-in tools, and one command:
 | `harnessy_skills` | Fetch the engine's own how-to guide |
 | `harnessy_resume` | Approve, decline, or cancel a run paused for approval |
 | `/harnessy` | Executor reachability and usage |
+| `/web` | Start or attach the engine and open the authenticated cockpit |
 
 If Executor cannot start, the tools report the bundled launch failure without
 requiring the user to know or start a separate service.

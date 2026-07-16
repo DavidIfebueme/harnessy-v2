@@ -22,7 +22,10 @@ bundled Executor's standard stdio MCP server, registered with
   compiled runtime for the current OS, CPU, and libc. `executor mcp` attaches
   to an existing local owner or starts its background daemon on first use. The
   daemon serves the cockpit UI, `/api`, and `/mcp` on one elected local port;
-  `harnessy web` prefers `4788` unless `--port` overrides it.
+  `harnessy web` prefers `4788` unless `--port` overrides it. Published
+  binaries serve embedded cockpit assets. Source builds first produce
+  `executor/apps/local/dist`, which the vendored source daemon serves directly;
+  normal `hsy` usage never starts a Vite development server.
 - **Data dir**: `~/.executor` by default (`EXECUTOR_DATA_DIR` override).
   Executor owns this state and lifecycle. It holds the SQLite store (integrations,
   connections, runs, policies) and `server-control/auth.json`, the bearer
@@ -52,9 +55,12 @@ the tools remain registered if startup fails.
 | `harnessy_skills` | Fetch the engine's own how-to guide (`{ name: "execute" }` for the full walkthrough) |
 | `harnessy_resume` | Accept, decline, or cancel a run paused for approval |
 
-`/harnessy` (slash command) reports Executor reachability and usage. The MCP
-session uses `elicitation_mode=model`, so approval pauses come
-back as an `executionId` the model resumes in-band after asking the user.
+`/harnessy` (slash command) reports Executor reachability and usage. `/web`
+starts or attaches the same Executor daemon, registers Harnessy's bundled
+AnyType integration, and opens the authenticated cockpit through the existing
+`harnessy web` lifecycle. The MCP session uses `elicitation_mode=model`, so
+approval pauses come back as an `executionId` the model resumes in-band after
+asking the user.
 
 Environment:
 
@@ -119,7 +125,14 @@ POST /api/openapi/specs
 { "spec": { "kind": "blob", "value": <spec json> },
   "slug": "anytype", "name": "AnyType",
   "baseUrl": "http://127.0.0.1:31009",
-  "headers": { "Anytype-Version": "2025-11-08" } }
+  "headers": { "Anytype-Version": "2025-11-08" },
+  "healthCheck": { "operation": "spaces_list" },
+  "authenticationTemplate": [{
+    "slug": "apiKey", "type": "apiKey", "label": "Pairing API key",
+    "headers": {
+      "Authorization": ["Bearer ", { "type": "variable", "name": "apiKey" }]
+    }
+  }] }
 ```
 
 The richer nine-tool `harnessy-anytype` plugin lives in `@harnessy/sdk` for

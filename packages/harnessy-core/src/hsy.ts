@@ -31,7 +31,14 @@ configureHsyRuntimeEnv();
 
 const executor = resolveExecutorBuiltin();
 process.env.HARNESSY_EXECUTOR_COMMAND = executor.command;
-process.env.HARNESSY_EXECUTOR_ARGS = JSON.stringify([...executor.args, "mcp", "--elicitation-mode", "model"]);
+process.env.HARNESSY_EXECUTOR_ARGS = JSON.stringify([
+	...executor.args,
+	"mcp",
+	"--scope",
+	".",
+	"--elicitation-mode",
+	"model",
+]);
 
 void runPiCli(normalizeHsyArgs(process.argv.slice(2)), {
 	appIdentity: {

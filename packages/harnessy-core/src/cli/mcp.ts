@@ -55,7 +55,7 @@ export const buildMcpInstallArgs = ({
 	"add-mcp",
 	command,
 	"--name",
-	"executor",
+	"harnessy",
 	...commandArgs.flatMap((arg) => ["--args", arg]),
 	...agents.flatMap((agent) => ["--agent", normalizeAgentName(agent)]),
 	...(userLevel ? ["--global"] : []),
@@ -75,7 +75,7 @@ export const mcpInstallCommand = Command.make(
 			const executor = resolveExecutorBuiltin();
 			const args = buildMcpInstallArgs({
 				command: executor.command,
-				commandArgs: [...executor.args, "mcp", "--elicitation-mode", "model"],
+				commandArgs: [...executor.args, "mcp", "--scope", ".", "--elicitation-mode", "model"],
 				agents,
 				userLevel,
 				yes,
@@ -86,7 +86,7 @@ export const mcpInstallCommand = Command.make(
 				return;
 			}
 
-			yield* Console.log("Registering bundled Executor directly with your agent...");
+			yield* Console.log("Registering Harnessy's bundled Executor directly with your agent...");
 			const exitCode = yield* runExecutorBuiltin({
 				launch: { command: process.platform === "win32" ? "npx.cmd" : "npx", args: [] },
 				args,

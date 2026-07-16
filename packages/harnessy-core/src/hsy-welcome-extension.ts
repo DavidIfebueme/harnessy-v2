@@ -4,9 +4,11 @@ import { basename, join } from "node:path";
 import process from "node:process";
 import type { ExtensionContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
+import { HarnessError } from "./errors.ts";
 import { HSY_APP_TITLE as APP_TITLE, HSY_CONFIG_DIR as CONFIG_DIR_NAME } from "./hsy-runtime-env.ts";
 
 const RUNTIME_CONTEXT_TYPE = "harnessy-runtime-context";
+const WEB_COMMAND_TIMEOUT_MS = 150_000;
 export const DEFAULT_HSY_AGENT_NAME = "Jarvis";
 
 const APP_LOGO = [
@@ -196,6 +198,7 @@ function buildRightColumn(data: WelcomeData, width: number): string[] {
 	return [
 		` ${bold(accent("Tips"))}`,
 		` ${dim("/")} for commands`,
+		` ${dim("/web")} open cockpit`,
 		` ${dim("!")} to run bash`,
 		` ${dim("Shift+Tab")} cycle thinking`,
 		separator,
@@ -325,6 +328,62 @@ function setHarnessyHeader(ctx: ExtensionContext): void {
 }
 
 export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
+	pi.registerCommand("web", {
+		description: "Start or attach Harnessy Engine and open the cockpit",
+		handler: async (_args, ctx) => {
+			ctx.ui.setStatus("harnessy-web", "Opening Harnessy cockpit...");
+			await Effect.runPromise(
+				Effect.tryPromise({
+					try: () =>
+						pi.exec("harnessy", ["web"], {
+							cwd: ctx.cwd,
+							timeout: WEB_COMMAND_TIMEOUT_MS,
+						}),
+					catch: (cause) =>
+						new HarnessError({
+							message: `Could not open Harnessy cockpit: ${cause instanceof Error ? cause.message : String(cause)}`,
+							cause,
+						}),
+				}).pipe(
+					Effect.match({
+						onFailure: (error) => ctx.ui.notify(error.message, "error"),
+						onSuccess: (result) => {
+							if (result.killed) {
+								ctx.ui.notify("Timed out opening Harnessy cockpit after 150 seconds.", "error");
+								return;
+							}
+							if (result.code !== 0) {
+								const detail = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
+								ctx.ui.notify(
+									`Could not open Harnessy cockpit: ${(detail || `exit code ${result.code}`).slice(-500)}`,
+									"error",
+								);
+								return;
+							}
+							const openingLine = result.stdout
+								.split("\n")
+								.map((line) => line.trim())
+								.find((line) => line.startsWith("Opening http"));
+							const warningLine = result.stderr
+								.split("\n")
+								.map((line) => line.trim())
+								.find((line) => line.includes("Bundled AnyType registration warning:"));
+							const readyMessage =
+								openingLine === undefined
+									? "Harnessy cockpit ready; browser opening requested."
+									: `Harnessy cockpit ready: ${openingLine.slice("Opening ".length)}`;
+							ctx.ui.notify(
+								warningLine === undefined ? readyMessage : `${readyMessage}\n${warningLine}`,
+								warningLine === undefined ? "info" : "warning",
+							);
+						},
+					}),
+					Effect.ensuring(Effect.sync(() => ctx.ui.setStatus("harnessy-web", undefined))),
+				),
+			);
+		},
+	});
+
 	pi.on("session_start", (event, ctx) => {
 		if (!sessionHasHarnessyRuntimeContext(ctx)) {
 			pi.sendMessage(createHarnessyRuntimeContextMessage(ctx.cwd), { triggerTurn: false });

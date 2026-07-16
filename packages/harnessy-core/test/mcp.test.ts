@@ -7,7 +7,14 @@ describe("MCP installer invocation", () => {
 		expect(
 			buildMcpInstallArgs({
 				command: "/usr/bin/node",
-				commandArgs: ["/app/node_modules/executor/bin/executor", "mcp", "--elicitation-mode", "model"],
+				commandArgs: [
+					"/app/node_modules/executor/bin/executor",
+					"mcp",
+					"--scope",
+					".",
+					"--elicitation-mode",
+					"model",
+				],
 				agents: ["claude", "gemini", "codex"],
 				userLevel: true,
 				yes: true,
@@ -17,11 +24,15 @@ describe("MCP installer invocation", () => {
 			"add-mcp",
 			"/usr/bin/node",
 			"--name",
-			"executor",
+			"harnessy",
 			"--args",
 			"/app/node_modules/executor/bin/executor",
 			"--args",
 			"mcp",
+			"--args",
+			"--scope",
+			"--args",
+			".",
 			"--args",
 			"--elicitation-mode",
 			"--args",
@@ -46,7 +57,7 @@ describe("MCP installer invocation", () => {
 			yes: false,
 		});
 		expect(args[0]).toBe("add-mcp");
-		expect(args.slice(1, 5)).toEqual(["executor", "--name", "executor", "--args"]);
+		expect(args.slice(1, 5)).toEqual(["executor", "--name", "harnessy", "--args"]);
 		expect(args).not.toContain("--yes");
 	});
 });
