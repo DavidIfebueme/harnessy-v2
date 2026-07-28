@@ -42,14 +42,14 @@ export function createMemoryService(projectRoot: string): MemoryService {
 	const apiKey = getSupermemoryApiKey();
 	if (apiKey) {
 		const projectName = sanitizeContainerName(basename(projectRoot));
-		return new SupermemoryAdapter(
-			apiKey,
-			{
-				userTag: "user",
-				projectTag: `project:${projectName}`,
-			},
-			projectRoot,
-		);
+	return new SupermemoryAdapter(
+		apiKey,
+		{
+			userTag: "harnessy:user",
+			projectTag: `harnessy:project:${projectName}`,
+		},
+		projectRoot,
+	);
 	}
 	return new FilesystemAdapter(projectRoot);
 }

@@ -217,7 +217,7 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 		name: "harnessy_memory_save",
 		label: "Memory Save",
 		description:
-			"Save a fact, preference, decision, or event to long-term memory. Use this when the user asks you to remember something.",
+			"Save a fact, preference, decision, or event to long-term memory. Call this proactively when you learn something about the user's preferences, workflow, or decisions - don't wait to be asked.",
 		parameters: Type.Object({
 			content: Type.String({ description: "The content to remember" }),
 			type: Type.Optional(
@@ -241,7 +241,7 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 		name: "harnessy_memory_recall",
 		label: "Memory Recall",
 		description:
-			"Search long-term memory for relevant facts, preferences, or past events. Use this when the user asks about something they told you before.",
+			"Search long-term memory for relevant facts, preferences, or past events. Call this at the start of a conversation to load context about the user.",
 		parameters: Type.Object({
 			query: Type.String({ description: "Search query to find relevant memories" }),
 		}),

@@ -1028,7 +1028,7 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
         "memory_save",
         {
           description:
-            "Save a fact, preference, decision, or event to long-term memory. Use this when the user asks you to remember something.",
+            "Save a fact, preference, decision, or event to long-term memory. Call this proactively when you learn something about the user's preferences, workflow, or decisions - don't wait to be asked.",
           inputSchema: {
             content: z.string().describe("The content to remember"),
             type: z
@@ -1062,7 +1062,7 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
         "memory_recall",
         {
           description:
-            "Search long-term memory for relevant facts, preferences, or past events. Use this when the user asks about something they told you before.",
+            "Search long-term memory for relevant facts, preferences, or past events. Call this at the start of a conversation to load context about the user.",
           inputSchema: {
             query: z.string().describe("Search query to find relevant memories"),
           },

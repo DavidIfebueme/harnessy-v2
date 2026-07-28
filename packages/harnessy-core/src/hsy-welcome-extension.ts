@@ -354,7 +354,7 @@ async function loadMemoryProfileSummary(projectRoot: string): Promise<string> {
 				const projectName = basename(projectRoot)
 					.replace(/[^a-zA-Z0-9_-]/g, "-")
 					.toLowerCase();
-				const containerTags = ["user", `project:${projectName}`];
+				const containerTags = ["harnessy:user", `harnessy:project:${projectName}`];
 				const summaryParts: string[] = [];
 
 				for (const containerTag of containerTags) {
