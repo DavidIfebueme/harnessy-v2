@@ -484,19 +484,6 @@ export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 			}
 		}
 
-		pi.sendMessage(
-			{
-				customType: "harnessy_memory_directive",
-				content: [
-					"You have long-term memory tools: harnessy_memory_save and harnessy_memory_recall.",
-					"Call harnessy_memory_recall at the start of conversations to load context about the user.",
-					"Call harnessy_memory_save proactively when you learn something about the user's preferences, workflow, or decisions - do not wait to be asked.",
-				].join("\n"),
-				display: false,
-			},
-			{ triggerTurn: false },
-		);
-
 		if (ctx.hasUI && (event.reason === "startup" || event.reason === "reload")) {
 			setHarnessyHeader(ctx);
 		}
