@@ -2,9 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
-import { FilesystemAdapter } from "./filesystem.ts";
-import { SupermemoryAdapter } from "./supermemory.ts";
-import type { MemoryService } from "./types.ts";
+import { FilesystemAdapter } from "./filesystem";
+import { SupermemoryAdapter } from "./supermemory";
+import type { MemoryService } from "./types";
 
 function getSupermemoryApiKey(): string | undefined {
 	if (process.env.HARNESSY_SUPERMEMORY === "0") {
@@ -21,6 +21,7 @@ function getSupermemoryApiKey(): string | undefined {
 		return undefined;
 	}
 
+	// oxlint-disable-next-line executor/no-try-catch-or-throw -- boundary: file parse for API key
 	try {
 		const auth = JSON.parse(readFileSync(authPath, "utf8"));
 		if (auth.supermemory?.type === "api_key" && typeof auth.supermemory.key === "string") {

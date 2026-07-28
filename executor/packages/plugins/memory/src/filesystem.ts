@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import type { MemoryBlock, MemoryProfile, MemoryService, MemoryType } from "./types.ts";
+import type { MemoryBlock, MemoryProfile, MemoryService, MemoryType } from "./types";
 
 const MEMORY_FILES = ["org.md", "project.md", "decisions.md", "events.md"] as const;
 

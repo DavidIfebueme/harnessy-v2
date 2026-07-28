@@ -1,8 +1,8 @@
-import * as Effect from "effect/Effect";
+import { Effect } from "effect";
 import Supermemory from "supermemory";
 
-import { FilesystemAdapter } from "./filesystem.ts";
-import type { MemoryBlock, MemoryProfile, MemoryService, MemoryType } from "./types.ts";
+import { FilesystemAdapter } from "./filesystem";
+import type { MemoryBlock, MemoryProfile, MemoryService, MemoryType } from "./types";
 
 interface ContainerTags {
 	readonly userTag: string;
@@ -133,10 +133,19 @@ export class SupermemoryAdapter implements MemoryService {
 
 		await Effect.tryPromise({
 			try: () =>
-				this.client.add({
-					content,
-					containerTag,
-					metadata: { type, source: "harnessy" },
+				fetch("https://api.supermemory.ai/v4/memories", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${this.client.apiKey}`,
+					},
+					body: JSON.stringify({
+						memories: [{ content, isStatic: type === "preference" }],
+						containerTag,
+					}),
+				}).then((res) => {
+					if (!res.ok) throw new Error(`HTTP ${res.status}`);
+					return res.json();
 				}),
 			catch: () => undefined,
 		}).pipe(Effect.runPromise);

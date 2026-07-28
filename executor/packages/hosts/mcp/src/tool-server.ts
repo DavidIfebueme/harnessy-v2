@@ -35,6 +35,7 @@ import {
   type PausedExecution,
   type PausedExecutionDeadline,
 } from "@executor-js/execution";
+import { createMemoryService } from "@executor-js/plugin-memory";
 
 // ---------------------------------------------------------------------------
 // Workers-compatible JSON Schema validator (replaces Ajv which uses new Function())
@@ -1015,6 +1016,78 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
     }).pipe(
       Effect.withSpan("mcp.host.register_tool", {
         attributes: { "mcp.tool.name": "resume" },
+      }),
+    );
+
+    // --- memory tools ---
+
+    const memory = createMemoryService(process.cwd());
+
+    yield* Effect.sync(() =>
+      server.registerTool(
+        "memory_save",
+        {
+          description:
+            "Save a fact, preference, decision, or event to long-term memory. Use this when the user asks you to remember something.",
+          inputSchema: {
+            content: z.string().describe("The content to remember"),
+            type: z
+              .enum(["fact", "preference", "decision", "event"])
+              .optional()
+              .default("fact")
+              .describe("Memory type"),
+          },
+        },
+        ({ content, type }) =>
+          runToolEffect(
+            Effect.tryPromise({
+              try: () => memory.save(content, type),
+              catch: (error) =>
+                new Error(`Save failed: ${error instanceof Error ? error.message : String(error)}`),
+            }).pipe(
+              Effect.map(() => ({
+                content: [{ type: "text" as const, text: `Saved to memory: ${content}` }],
+              })),
+            ),
+          ),
+      ),
+    ).pipe(
+      Effect.withSpan("mcp.host.register_tool", {
+        attributes: { "mcp.tool.name": "memory_save" },
+      }),
+    );
+
+    yield* Effect.sync(() =>
+      server.registerTool(
+        "memory_recall",
+        {
+          description:
+            "Search long-term memory for relevant facts, preferences, or past events. Use this when the user asks about something they told you before.",
+          inputSchema: {
+            query: z.string().describe("Search query to find relevant memories"),
+          },
+        },
+        ({ query }) =>
+          runToolEffect(
+            Effect.tryPromise({
+              try: () => memory.recall(query),
+              catch: () => [] as ReadonlyArray<{ content: string; source: string; type: "fact" | "preference" | "decision" | "event"; updatedAt: Date }>,
+            }).pipe(
+              Effect.map((blocks) => {
+                if (blocks.length === 0) {
+                  return { content: [{ type: "text" as const, text: "No matching memories found." }] };
+                }
+                const formatted = blocks.map((b) => `- [${b.type}] ${b.content}`).join("\n");
+                return {
+                  content: [{ type: "text" as const, text: `Found ${blocks.length} memories:\n${formatted}` }],
+                };
+              }),
+            ),
+          ),
+      ),
+    ).pipe(
+      Effect.withSpan("mcp.host.register_tool", {
+        attributes: { "mcp.tool.name": "memory_recall" },
       }),
     );
 

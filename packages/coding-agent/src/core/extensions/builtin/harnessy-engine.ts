@@ -137,9 +137,11 @@ async function engineStatus(): Promise<{ ok: boolean; text: string }> {
 	}
 	lines.push("");
 	lines.push(ok ? "The engine tools are live in this session:" : "The native MCP tools remain registered:");
-	lines.push("  harnessy_execute  run code against every connected integration (policy + audit)");
-	lines.push("  harnessy_skills   the engine's own how-to guide");
-	lines.push("  harnessy_resume   approve/decline paused runs");
+	lines.push("  harnessy_execute        run code against every connected integration (policy + audit)");
+	lines.push("  harnessy_skills         the engine's own how-to guide");
+	lines.push("  harnessy_resume         approve/decline paused runs");
+	lines.push("  harnessy_memory_save    save facts/preferences to long-term memory");
+	lines.push("  harnessy_memory_recall  search long-term memory");
 	lines.push("");
 	lines.push(`Just ask for things ("connect my Google Calendar", "search my AnyType notes") — the model uses them.`);
 	lines.push("Use `harnessy web` only when a browser handoff or cockpit view is useful.");
@@ -207,6 +209,44 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 				{ executionId: params.executionId, action: params.action, content: params.content ?? "{}" },
 				signal,
 			);
+			return { content, details: undefined };
+		},
+	});
+
+	pi.registerTool({
+		name: "harnessy_memory_save",
+		label: "Memory Save",
+		description:
+			"Save a fact, preference, decision, or event to long-term memory. Use this when the user asks you to remember something.",
+		parameters: Type.Object({
+			content: Type.String({ description: "The content to remember" }),
+			type: Type.Optional(
+				Type.Union(
+					[Type.Literal("fact"), Type.Literal("preference"), Type.Literal("decision"), Type.Literal("event")],
+					{ description: "Memory type" },
+				),
+			),
+		}),
+		execute: async (_toolCallId, params, signal) => {
+			const { content } = await callEngine(
+				"memory_save",
+				{ content: params.content, type: params.type ?? "fact" },
+				signal,
+			);
+			return { content, details: undefined };
+		},
+	});
+
+	pi.registerTool({
+		name: "harnessy_memory_recall",
+		label: "Memory Recall",
+		description:
+			"Search long-term memory for relevant facts, preferences, or past events. Use this when the user asks about something they told you before.",
+		parameters: Type.Object({
+			query: Type.String({ description: "Search query to find relevant memories" }),
+		}),
+		execute: async (_toolCallId, params, signal) => {
+			const { content } = await callEngine("memory_recall", { query: params.query }, signal);
 			return { content, details: undefined };
 		},
 	});

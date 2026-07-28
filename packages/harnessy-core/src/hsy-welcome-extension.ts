@@ -4,10 +4,8 @@ import { basename, join } from "node:path";
 import process from "node:process";
 import type { ExtensionContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
-import { Type } from "typebox";
 import { HarnessError } from "./errors.ts";
 import { HSY_APP_TITLE as APP_TITLE, HSY_CONFIG_DIR as CONFIG_DIR_NAME } from "./hsy-runtime-env.ts";
-import { createMemoryService } from "./memory/index.ts";
 
 const RUNTIME_CONTEXT_TYPE = "harnessy-runtime-context";
 const MEMORY_PROFILE_TYPE = "harnessy-memory-profile";
@@ -341,6 +339,75 @@ function setHarnessyHeader(ctx: ExtensionContext): void {
 	}));
 }
 
+async function loadMemoryProfileSummary(projectRoot: string): Promise<string> {
+	const authPath = join(homedir(), ".hsy", "agent", "auth.json");
+	if (existsSync(authPath)) {
+		const authData = await Effect.tryPromise({
+			try: () => Promise.resolve(readFileSync(authPath, "utf8")),
+			catch: () => undefined,
+		}).pipe(Effect.runPromise);
+
+		if (authData) {
+			const auth = JSON.parse(authData) as Record<string, unknown>;
+			const sm = auth.supermemory as Record<string, unknown> | undefined;
+			if (sm?.type === "api_key" && typeof sm.key === "string") {
+				const projectName = basename(projectRoot)
+					.replace(/[^a-zA-Z0-9_-]/g, "-")
+					.toLowerCase();
+				const containerTags = ["user", `project:${projectName}`];
+				const summaryParts: string[] = [];
+
+				for (const containerTag of containerTags) {
+					const res = await Effect.tryPromise({
+						try: () =>
+							fetch("https://api.supermemory.ai/v4/profile", {
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+									Authorization: `Bearer ${sm.key}`,
+								},
+								body: JSON.stringify({ containerTag }),
+							}).then((r) => r.json() as Promise<{ profile?: { static?: string[]; dynamic?: string[] } }>),
+						catch: () => undefined,
+					}).pipe(Effect.runPromise);
+
+					if (res?.profile) {
+						summaryParts.push(...(res.profile.static ?? []).slice(0, 5));
+						summaryParts.push(...(res.profile.dynamic ?? []).slice(0, 5));
+					}
+				}
+
+				if (summaryParts.length > 0) {
+					return `Key facts:\n${summaryParts.map((s) => `- ${s}`).join("\n")}`;
+				}
+			}
+		}
+	}
+
+	const memoryDir = join(projectRoot, ".harnessy", "memory");
+	const files = ["org.md", "project.md", "decisions.md", "events.md"] as const;
+	const localParts: string[] = [];
+
+	for (const file of files) {
+		const filePath = join(memoryDir, file);
+		if (!existsSync(filePath)) continue;
+
+		const content = readFileSync(filePath, "utf8");
+		const lines = content.split("\n");
+		for (const line of lines) {
+			if (line.startsWith("## ")) {
+				localParts.push(line.slice(3).trim());
+			}
+		}
+	}
+
+	if (localParts.length === 0) return "";
+	return `Key facts:\n${localParts
+		.slice(0, 10)
+		.map((s) => `- ${s}`)
+		.join("\n")}`;
+}
+
 export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 	pi.registerCommand("web", {
 		description: "Start or attach Harnessy Engine and open the cockpit",
@@ -404,17 +471,12 @@ export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 		}
 
 		if (!sessionHasMemoryProfile(ctx)) {
-			const memoryService = createMemoryService(ctx.cwd);
-			const profile = await Effect.tryPromise({
-				try: () => memoryService.loadProfile(),
-				catch: () => undefined,
-			}).pipe(Effect.runPromise);
-
-			if (profile?.summary) {
+			const summary = await loadMemoryProfileSummary(ctx.cwd);
+			if (summary) {
 				pi.sendMessage(
 					{
 						customType: MEMORY_PROFILE_TYPE,
-						content: `<memory_profile>\n${profile.summary}\n</memory_profile>`,
+						content: `<memory_profile>\n${summary}\n</memory_profile>`,
 						display: false,
 					},
 					{ triggerTurn: false },
@@ -425,56 +487,6 @@ export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 		if (ctx.hasUI && (event.reason === "startup" || event.reason === "reload")) {
 			setHarnessyHeader(ctx);
 		}
-	});
-
-	pi.registerTool({
-		name: "memory_save",
-		label: "Memory Save",
-		description:
-			"Save a fact, preference, decision, or event to long-term memory. Use this when the user asks you to remember something.",
-		parameters: Type.Object({
-			content: Type.String({ description: "The content to remember" }),
-			type: Type.Optional(
-				Type.Union(
-					[Type.Literal("fact"), Type.Literal("preference"), Type.Literal("decision"), Type.Literal("event")],
-					{ description: "Memory type (defaults to fact)" },
-				),
-			),
-		}),
-		execute: async (_toolCallId, params, _signal) => {
-			const memoryService = createMemoryService(process.cwd());
-			const type = params.type ?? "fact";
-			await memoryService.save(params.content, type);
-			return {
-				content: [{ type: "text" as const, text: `Saved to memory: ${params.content}` }],
-				details: undefined,
-			};
-		},
-	});
-
-	pi.registerTool({
-		name: "memory_recall",
-		label: "Memory Recall",
-		description:
-			"Search long-term memory for relevant facts, preferences, or past events. Use this when the user asks about something they told you before.",
-		parameters: Type.Object({
-			query: Type.String({ description: "Search query to find relevant memories" }),
-		}),
-		execute: async (_toolCallId, params, _signal) => {
-			const memoryService = createMemoryService(process.cwd());
-			const blocks = await memoryService.recall(params.query);
-			if (blocks.length === 0) {
-				return {
-					content: [{ type: "text" as const, text: "No matching memories found." }],
-					details: undefined,
-				};
-			}
-			const formatted = blocks.map((b) => `- [${b.type}] ${b.content}`).join("\n");
-			return {
-				content: [{ type: "text" as const, text: `Found ${blocks.length} memories:\n${formatted}` }],
-				details: undefined,
-			};
-		},
 	});
 
 	pi.on("resources_discover", (event, ctx) => {
