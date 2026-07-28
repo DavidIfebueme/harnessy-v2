@@ -4,10 +4,13 @@ import { basename, join } from "node:path";
 import process from "node:process";
 import type { ExtensionContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
+import { Type } from "typebox";
 import { HarnessError } from "./errors.ts";
 import { HSY_APP_TITLE as APP_TITLE, HSY_CONFIG_DIR as CONFIG_DIR_NAME } from "./hsy-runtime-env.ts";
+import { createMemoryService } from "./memory/index.ts";
 
 const RUNTIME_CONTEXT_TYPE = "harnessy-runtime-context";
+const MEMORY_PROFILE_TYPE = "harnessy-memory-profile";
 const WEB_COMMAND_TIMEOUT_MS = 150_000;
 export const DEFAULT_HSY_AGENT_NAME = "Jarvis";
 
@@ -311,6 +314,17 @@ function sessionHasHarnessyRuntimeContext(ctx: ExtensionContext): boolean {
 		);
 }
 
+function sessionHasMemoryProfile(ctx: ExtensionContext): boolean {
+	return ctx.sessionManager
+		.getBranch()
+		.some(
+			(entry) =>
+				entry.type === "message" &&
+				entry.message.role === "custom" &&
+				entry.message.customType === MEMORY_PROFILE_TYPE,
+		);
+}
+
 function setHarnessyHeader(ctx: ExtensionContext): void {
 	const data: WelcomeData = {
 		modelName: ctx.model?.name ?? ctx.model?.id ?? "No model",
@@ -384,14 +398,83 @@ export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 		},
 	});
 
-	pi.on("session_start", (event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		if (!sessionHasHarnessyRuntimeContext(ctx)) {
 			pi.sendMessage(createHarnessyRuntimeContextMessage(ctx.cwd), { triggerTurn: false });
+		}
+
+		if (!sessionHasMemoryProfile(ctx)) {
+			const memoryService = createMemoryService(ctx.cwd);
+			const profile = await Effect.tryPromise({
+				try: () => memoryService.loadProfile(),
+				catch: () => undefined,
+			}).pipe(Effect.runPromise);
+
+			if (profile?.summary) {
+				pi.sendMessage(
+					{
+						customType: MEMORY_PROFILE_TYPE,
+						content: `<memory_profile>\n${profile.summary}\n</memory_profile>`,
+						display: false,
+					},
+					{ triggerTurn: false },
+				);
+			}
 		}
 
 		if (ctx.hasUI && (event.reason === "startup" || event.reason === "reload")) {
 			setHarnessyHeader(ctx);
 		}
+	});
+
+	pi.registerTool({
+		name: "memory_save",
+		label: "Memory Save",
+		description:
+			"Save a fact, preference, decision, or event to long-term memory. Use this when the user asks you to remember something.",
+		parameters: Type.Object({
+			content: Type.String({ description: "The content to remember" }),
+			type: Type.Optional(
+				Type.Union(
+					[Type.Literal("fact"), Type.Literal("preference"), Type.Literal("decision"), Type.Literal("event")],
+					{ description: "Memory type (defaults to fact)" },
+				),
+			),
+		}),
+		execute: async (_toolCallId, params, _signal) => {
+			const memoryService = createMemoryService(process.cwd());
+			const type = params.type ?? "fact";
+			await memoryService.save(params.content, type);
+			return {
+				content: [{ type: "text" as const, text: `Saved to memory: ${params.content}` }],
+				details: undefined,
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "memory_recall",
+		label: "Memory Recall",
+		description:
+			"Search long-term memory for relevant facts, preferences, or past events. Use this when the user asks about something they told you before.",
+		parameters: Type.Object({
+			query: Type.String({ description: "Search query to find relevant memories" }),
+		}),
+		execute: async (_toolCallId, params, _signal) => {
+			const memoryService = createMemoryService(process.cwd());
+			const blocks = await memoryService.recall(params.query);
+			if (blocks.length === 0) {
+				return {
+					content: [{ type: "text" as const, text: "No matching memories found." }],
+					details: undefined,
+				};
+			}
+			const formatted = blocks.map((b) => `- [${b.type}] ${b.content}`).join("\n");
+			return {
+				content: [{ type: "text" as const, text: `Found ${blocks.length} memories:\n${formatted}` }],
+				details: undefined,
+			};
+		},
 	});
 
 	pi.on("resources_discover", (event, ctx) => {
