@@ -129,9 +129,8 @@ export class SupermemoryAdapter implements MemoryService {
 
 	async save(content: string, type: MemoryType): Promise<void> {
 		const containerTag = type === "preference" ? this.tags.userTag : this.tags.projectTag;
-		const fallback = this.fallback;
 
-		await Effect.tryPromise({
+		const success = await Effect.tryPromise({
 			try: () =>
 				fetch("https://api.supermemory.ai/v4/memories", {
 					method: "POST",
@@ -150,7 +149,9 @@ export class SupermemoryAdapter implements MemoryService {
 			catch: () => undefined,
 		}).pipe(Effect.runPromise);
 
-		await fallback.save(content, type);
+		if (!success) {
+			await this.fallback.save(content, type);
+		}
 	}
 
 	isAvailable(): boolean {
