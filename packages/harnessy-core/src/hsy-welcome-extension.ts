@@ -12,6 +12,9 @@ const MEMORY_PROFILE_TYPE = "harnessy-memory-profile";
 const WEB_COMMAND_TIMEOUT_MS = 150_000;
 export const DEFAULT_HSY_AGENT_NAME = "Jarvis";
 
+const harnessyEngineEnabled = (): boolean =>
+	process.env.HARNESSY_PI_RUNTIME === "true" && process.env.HARNESSY_ENGINE !== "0";
+
 const APP_LOGO = [
 	"██ ██ ████       ",
 	"██ ██ ██   ██  ██",
@@ -470,13 +473,15 @@ export const harnessyWelcomeExtension: ExtensionFactory = (pi) => {
 			pi.sendMessage(createHarnessyRuntimeContextMessage(ctx.cwd), { triggerTurn: false });
 		}
 
-		if (!sessionHasMemoryProfile(ctx)) {
+		if (harnessyEngineEnabled() && !sessionHasMemoryProfile(ctx)) {
 			const summary = await loadMemoryProfileSummary(ctx.cwd);
 			if (summary) {
+				const memoryGuidance =
+					"To save or recall information, use harnessy_memory_save / harnessy_memory_recall directly (not via harnessy_execute).";
 				pi.sendMessage(
 					{
 						customType: MEMORY_PROFILE_TYPE,
-						content: `<memory_profile>\n${summary}\n</memory_profile>`,
+						content: `<memory_profile>\n${summary}\n\n${memoryGuidance}\n</memory_profile>`,
 						display: false,
 					},
 					{ triggerTurn: false },
