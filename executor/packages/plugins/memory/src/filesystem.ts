@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, readFileSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import type { MemoryBlock, MemoryProfile, MemoryService, MemoryType } from "./types";
@@ -10,6 +10,13 @@ const FILE_TYPE_MAP: Record<string, MemoryType> = {
 	"project.md": "fact",
 	"decisions.md": "decision",
 	"events.md": "event",
+};
+
+const FILE_HEADERS: Record<string, string> = {
+	"org.md": "# Organization Memory\n\nRecord stable facts here. Keep entries concise, dated when useful, and easy for agents to verify.\n",
+	"project.md": "# Project Memory\n\nRecord stable facts here. Keep entries concise, dated when useful, and easy for agents to verify.\n",
+	"decisions.md": "# Decisions\n\nRecord stable facts here. Keep entries concise, dated when useful, and easy for agents to verify.\n",
+	"events.md": "# Events\n\nRecord stable facts here. Keep entries concise, dated when useful, and easy for agents to verify.\n",
 };
 
 function parseMarkdownSections(content: string, source: string, type: MemoryType): ReadonlyArray<MemoryBlock> {
@@ -119,7 +126,13 @@ export class FilesystemAdapter implements MemoryService {
 		const entry = `\n## ${timestamp}\n${content}\n`;
 
 		if (!existsSync(this.memoryDir)) {
-			return;
+			mkdirSync(this.memoryDir, { recursive: true });
+			for (const [file, header] of Object.entries(FILE_HEADERS)) {
+				const headerPath = join(this.memoryDir, file);
+				if (!existsSync(headerPath)) {
+					appendFileSync(headerPath, header, "utf8");
+				}
+			}
 		}
 
 		appendFileSync(filePath, entry, "utf8");
