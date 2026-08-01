@@ -353,7 +353,7 @@ async function loadMemoryProfileSummary(projectRoot: string): Promise<string> {
 		if (authData) {
 			const auth = JSON.parse(authData) as Record<string, unknown>;
 			const sm = auth.supermemory as Record<string, unknown> | undefined;
-			if (sm?.type === "api_key" && typeof sm.key === "string") {
+			if (sm?.type === "api_key" && typeof sm.key === "string" && process.env.HARNESSY_SUPERMEMORY !== "0") {
 				const projectName = basename(projectRoot)
 					.replace(/[^a-zA-Z0-9_-]/g, "-")
 					.toLowerCase();

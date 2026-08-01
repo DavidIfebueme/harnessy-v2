@@ -35,7 +35,9 @@ import {
   type PausedExecution,
   type PausedExecutionDeadline,
 } from "@executor-js/execution";
-import { createMemoryService } from "@executor-js/plugin-memory";
+import { existsSync } from "node:fs";
+import { isAbsolute } from "node:path";
+import { createMemoryService, type MemoryService } from "@executor-js/plugin-memory";
 
 // ---------------------------------------------------------------------------
 // Workers-compatible JSON Schema validator (replaces Ajv which uses new Function())
@@ -1021,14 +1023,23 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
 
     // --- memory tools ---
 
-    const memory = createMemoryService(process.cwd());
+    const memoryCache = new Map<string, MemoryService>();
+
+    function resolveMemoryService(projectRoot?: string): MemoryService {
+      const root = projectRoot ?? process.cwd();
+      const cached = memoryCache.get(root);
+      if (cached) return cached;
+      const svc = createMemoryService(root);
+      memoryCache.set(root, svc);
+      return svc;
+    }
 
     yield* Effect.sync(() =>
       server.registerTool(
         "memory_save",
         {
           description:
-            "Save a fact, preference, decision, or event to long-term memory. Call this proactively when you learn something about the user's preferences, workflow, or decisions - don't wait to be asked.",
+            "Save a fact, preference, decision, or event to long-term memory. Call this proactively when you learn something about the user's preferences, workflow, or decisions - don't wait to be asked. projectRoot should be the user's current project directory.",
           inputSchema: {
             content: z.string().describe("The content to remember"),
             type: z
@@ -1036,12 +1047,21 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
               .optional()
               .default("fact")
               .describe("Memory type"),
+            projectRoot: z
+              .string()
+              .optional()
+              .describe("Absolute path to the project root directory. Defaults to the daemon's working directory."),
           },
         },
-        ({ content, type }) =>
+        ({ content, type, projectRoot }) =>
           runToolEffect(
             Effect.tryPromise({
-              try: () => memory.save(content, type),
+              try: () => {
+                if (projectRoot && (!isAbsolute(projectRoot) || !existsSync(projectRoot))) {
+                  throw new Error(`Invalid projectRoot: must be an absolute path to an existing directory`);
+                }
+                return resolveMemoryService(projectRoot).save(content, type);
+              },
               catch: (error) =>
                 new Error(`Save failed: ${error instanceof Error ? error.message : String(error)}`),
             }).pipe(
@@ -1062,15 +1082,24 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
         "memory_recall",
         {
           description:
-            "Search long-term memory for relevant facts, preferences, or past events. Call this at the start of a conversation to load context about the user.",
+            "Search long-term memory for relevant facts, preferences, or past events. Call this at the start of a conversation to load context about the user. projectRoot should be the user's current project directory.",
           inputSchema: {
             query: z.string().describe("Search query to find relevant memories"),
+            projectRoot: z
+              .string()
+              .optional()
+              .describe("Absolute path to the project root directory. Defaults to the daemon's working directory."),
           },
         },
-        ({ query }) =>
+        ({ query, projectRoot }) =>
           runToolEffect(
             Effect.tryPromise({
-              try: () => memory.recall(query),
+              try: () => {
+                if (projectRoot && (!isAbsolute(projectRoot) || !existsSync(projectRoot))) {
+                  throw new Error(`Invalid projectRoot: must be an absolute path to an existing directory`);
+                }
+                return resolveMemoryService(projectRoot).recall(query);
+              },
               catch: () => [] as ReadonlyArray<{ content: string; source: string; type: "fact" | "preference" | "decision" | "event"; updatedAt: Date }>,
             }).pipe(
               Effect.map((blocks) => {

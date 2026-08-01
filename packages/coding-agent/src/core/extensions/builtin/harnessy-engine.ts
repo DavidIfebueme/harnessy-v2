@@ -226,11 +226,12 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 					{ description: "Memory type" },
 				),
 			),
+			projectRoot: Type.Optional(Type.String({ description: "Absolute path to the project root directory" })),
 		}),
-		execute: async (_toolCallId, params, signal) => {
+		execute: async (_toolCallId, params, signal, _onUpdate, ctx) => {
 			const { content } = await callEngine(
 				"memory_save",
-				{ content: params.content, type: params.type ?? "fact" },
+				{ content: params.content, type: params.type ?? "fact", projectRoot: params.projectRoot ?? ctx.cwd },
 				signal,
 			);
 			return { content, details: undefined };
@@ -244,9 +245,14 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 			"Search long-term memory for relevant facts, preferences, or past events. Call this at the start of a conversation to load context about the user.",
 		parameters: Type.Object({
 			query: Type.String({ description: "Search query to find relevant memories" }),
+			projectRoot: Type.Optional(Type.String({ description: "Absolute path to the project root directory" })),
 		}),
-		execute: async (_toolCallId, params, signal) => {
-			const { content } = await callEngine("memory_recall", { query: params.query }, signal);
+		execute: async (_toolCallId, params, signal, _onUpdate, ctx) => {
+			const { content } = await callEngine(
+				"memory_recall",
+				{ query: params.query, projectRoot: params.projectRoot ?? ctx.cwd },
+				signal,
+			);
 			return { content, details: undefined };
 		},
 	});
