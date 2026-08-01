@@ -1451,13 +1451,13 @@ const runStdioMcpSession = (input: { readonly elicitationMode: "browser" | "mode
     if (process.env.HARNESSY_SUPERMEMORY === "0") {
       const active = yield* readActiveLocalServerManifest();
       if (active) {
-        yield* stopDaemon(active.connection.origin).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() =>
-              console.error(`[executor] Could not stop daemon: ${error.message}`),
-            ),
-          ),
-        );
+        yield* terminatePid(active.pid).pipe(Effect.ignore);
+        yield* waitForUnreachable({
+          check: isServerReachable(active.connection.origin),
+          timeoutMs: 5000,
+          intervalMs: 200,
+        }).pipe(Effect.ignore);
+        yield* removeLocalServerManifestIfOwnedBy({ pid: active.pid }).pipe(Effect.ignore);
       }
     }
 
