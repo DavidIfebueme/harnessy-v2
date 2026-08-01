@@ -370,6 +370,7 @@ async function loadMemoryProfileSummary(projectRoot: string): Promise<string> {
 									Authorization: `Bearer ${sm.key}`,
 								},
 								body: JSON.stringify({ containerTag }),
+								signal: AbortSignal.timeout(5000),
 							}).then((r) => r.json() as Promise<{ profile?: { static?: string[]; dynamic?: string[] } }>),
 						catch: () => undefined,
 					}).pipe(Effect.runPromise);
