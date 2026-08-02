@@ -111,7 +111,7 @@ export class FilesystemAdapter implements MemoryService {
 		);
 	}
 
-	async save(content: string, type: MemoryType): Promise<void> {
+	async save(content: string, type: MemoryType, _container?: "user" | "project"): Promise<void> {
 		const fileMap: Record<MemoryType, string> = {
 			fact: "project.md",
 			preference: "org.md",

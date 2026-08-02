@@ -127,8 +127,14 @@ export class SupermemoryAdapter implements MemoryService {
 		return [...projectResults, ...userResults];
 	}
 
-	async save(content: string, type: MemoryType): Promise<void> {
-		const containerTag = type === "preference" ? this.tags.userTag : this.tags.projectTag;
+	async save(content: string, type: MemoryType, container?: "user" | "project"): Promise<void> {
+		const containerTag = container === "user"
+			? this.tags.userTag
+			: container === "project"
+				? this.tags.projectTag
+				: type === "preference"
+					? this.tags.userTag
+					: this.tags.projectTag;
 
 		const success = await Effect.tryPromise({
 			try: () =>
@@ -150,7 +156,7 @@ export class SupermemoryAdapter implements MemoryService {
 		}).pipe(Effect.runPromise);
 
 		if (!success) {
-			await this.fallback.save(content, type);
+			await this.fallback.save(content, type, container);
 		}
 	}
 

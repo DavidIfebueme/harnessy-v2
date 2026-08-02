@@ -226,12 +226,22 @@ export function harnessyEngineExtension(pi: ExtensionAPI): void {
 					{ description: "Memory type" },
 				),
 			),
+			container: Type.Optional(
+				Type.Union([Type.Literal("user"), Type.Literal("project")], {
+					description: "Container: user (cross-project preferences) or project (current repo)",
+				}),
+			),
 			projectRoot: Type.Optional(Type.String({ description: "Absolute path to the project root directory" })),
 		}),
 		execute: async (_toolCallId, params, signal, _onUpdate, ctx) => {
 			const { content } = await callEngine(
 				"memory_save",
-				{ content: params.content, type: params.type ?? "fact", projectRoot: params.projectRoot ?? ctx.cwd },
+				{
+					content: params.content,
+					type: params.type ?? "fact",
+					container: params.container,
+					projectRoot: params.projectRoot ?? ctx.cwd,
+				},
 				signal,
 			);
 			return { content, details: undefined };

@@ -1047,20 +1047,24 @@ export const createExecutorMcpServer = <E extends Cause.YieldableError>(
               .optional()
               .default("fact")
               .describe("Memory type"),
+            container: z
+              .enum(["user", "project"])
+              .optional()
+              .describe("Container: user (cross-project preferences) or project (current repo). Omit for type-based routing."),
             projectRoot: z
               .string()
               .optional()
               .describe("Absolute path to the project root directory. Defaults to the daemon's working directory."),
           },
         },
-        ({ content, type, projectRoot }) =>
+        ({ content, type, container, projectRoot }) =>
           runToolEffect(
             Effect.tryPromise({
               try: () => {
                 if (projectRoot && (!isAbsolute(projectRoot) || !existsSync(projectRoot))) {
                   throw new Error(`Invalid projectRoot: must be an absolute path to an existing directory`);
                 }
-                return resolveMemoryService(projectRoot).save(content, type);
+                return resolveMemoryService(projectRoot).save(content, type, container);
               },
               catch: (error) =>
                 new Error(`Save failed: ${error instanceof Error ? error.message : String(error)}`),

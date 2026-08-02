@@ -16,6 +16,6 @@ export interface MemoryProfile {
 export interface MemoryService {
 	readonly loadProfile: () => Promise<MemoryProfile>;
 	readonly recall: (query: string) => Promise<ReadonlyArray<MemoryBlock>>;
-	readonly save: (content: string, type: MemoryType) => Promise<void>;
+	readonly save: (content: string, type: MemoryType, container?: "user" | "project") => Promise<void>;
 	readonly isAvailable: () => boolean;
 }

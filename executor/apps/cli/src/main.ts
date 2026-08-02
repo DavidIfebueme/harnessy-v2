@@ -1447,20 +1447,6 @@ const runStdioMcpSession = (input: { readonly elicitationMode: "browser" | "mode
     // its manifest (waitForDaemonStartupTarget) rather than failing. Bridging
     // means many MCP clients, the web UI, and the desktop app share one owner,
     // and that owner's lifetime is never tied to a transient MCP client.
-    // HARNESSY_SUPERMEMORY=0 restarts the daemon so the env var takes effect; ideally this would be per-connection.
-    if (process.env.HARNESSY_SUPERMEMORY === "0") {
-      const active = yield* readActiveLocalServerManifest();
-      if (active) {
-        yield* terminatePid(active.pid).pipe(Effect.ignore);
-        yield* waitForUnreachable({
-          check: isServerReachable(active.connection.origin),
-          timeoutMs: 5000,
-          intervalMs: 200,
-        }).pipe(Effect.ignore);
-        yield* removeLocalServerManifestIfOwnedBy({ pid: active.pid }).pipe(Effect.ignore);
-      }
-    }
-
     const active = yield* readActiveLocalServerManifest();
     if (active) {
       yield* Effect.promise(() =>
