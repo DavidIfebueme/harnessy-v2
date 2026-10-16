@@ -15,6 +15,10 @@ const writers = [
 		"/Library/Frameworks/Python.framework/Versions/3.11/Resources/Python.app/Contents/MacOS/Python -u /Users/u/.venv/bin/jarvis meeting publish review serve",
 	],
 	["V1 module", "/usr/bin/python3 -m jarvis meeting review serve"],
+	[
+		"V1 script after valued options",
+		"/usr/bin/python3 -W ignore -X dev -Wdefault /opt/bin/jarvis meeting review serve",
+	],
 	["V2 Node CLI", "/opt/h/bin/node /opt/h/node_modules/@harnessy/core/dist/cli.js jarvis meeting review serve"],
 ] as const;
 
@@ -36,6 +40,9 @@ const bystanders = [
 	],
 	["echo", "/bin/echo /Users/u/.venv/bin/jarvis meeting review serve"],
 	["review opener", "/opt/harnessy/bin/jarvis meeting publish review open"],
+	["script given a jarvis path argument", "/usr/bin/python3 /opt/scan.py /tmp/jarvis meeting review serve"],
+	["script given the words as arguments", "/usr/local/bin/node /opt/tools/search.js jarvis meeting review serve"],
+	["inline Node after an option", "/usr/local/bin/node --no-warnings --eval jarvis meeting review serve"],
 ] as const;
 
 describe("process invocation", () => {
@@ -76,6 +83,7 @@ describe("process invocation", () => {
 			"test runner",
 			"/usr/local/bin/node /Users/u/Code/harnessy-v2/node_modules/vitest/dist/cli.js --run test/community-process-identity.test.ts",
 		],
+		["script inspecting a worker path", "/usr/bin/python3 /tmp/inspect.py /tmp/briefing_worker.py"],
 	] as const)("does not treat an unrelated %s as a community writer", (_name, commandLine) => {
 		expect(isCommunityCompatibilityWriterCommand(commandLine)).toBe(false);
 	});
@@ -97,5 +105,10 @@ describe("process invocation", () => {
 		]);
 		expect(launchedPrograms("/usr/bin/python3 -m jarvis.cli meeting")).toEqual(["/usr/bin/python3", "jarvis.cli"]);
 		expect(launchedPrograms("/bin/zsh /a/b.sh")).toEqual(["/bin/zsh"]);
+		expect(launchedPrograms("/usr/bin/python3 /a/b.py /c/d.py")).toEqual(["/usr/bin/python3", "/a/b.py"]);
+		expect(launchedPrograms("/usr/bin/node -r ./hook.js --import=/x/y.mjs /a/cli.js")).toEqual([
+			"/usr/bin/node",
+			"/a/cli.js",
+		]);
 	});
 });
