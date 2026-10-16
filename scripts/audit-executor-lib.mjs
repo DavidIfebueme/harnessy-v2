@@ -17,7 +17,14 @@ export const parseAuditExceptions = (value) => {
 			if (typeof entry?.[field] !== "string" || entry[field].trim() === "")
 				throw new Error(`Audit exception ${index} requires a non-empty ${field}`);
 		}
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.expires) || Number.isNaN(Date.parse(`${entry.expires}T00:00:00Z`)))
+		// Date.parse normalizes impossible days (2026-02-30 becomes March 2), so the
+		// parsed date must round-trip to the supplied calendar date.
+		const expiresAt = Date.parse(`${entry.expires}T00:00:00Z`);
+		if (
+			!/^\d{4}-\d{2}-\d{2}$/.test(entry.expires) ||
+			Number.isNaN(expiresAt) ||
+			new Date(expiresAt).toISOString().slice(0, 10) !== entry.expires
+		)
 			throw new Error(`Audit exception ${index} has an invalid expires date`);
 		return {
 			package: entry.package,

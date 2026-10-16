@@ -84,4 +84,16 @@ test("Executor audit exceptions reject incomplete or undated entries", () => {
 			]),
 		/invalid expires/,
 	);
+	for (const expires of ["2026-02-30", "2026-11-31", "2026-13-01", "2026-00-10"]) {
+		assert.throws(
+			() => parseAuditExceptions([{ package: "braces", url: "u", vulnerableVersions: "v", reason: "r", expires }]),
+			/invalid expires/,
+			expires,
+		);
+	}
+	assert.equal(
+		parseAuditExceptions([{ package: "braces", url: "u", vulnerableVersions: "v", reason: "r", expires: "2028-02-29" }])[0]
+			.expires,
+		"2028-02-29",
+	);
 });
