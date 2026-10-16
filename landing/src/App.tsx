@@ -24,13 +24,28 @@ function Reveal({ children, delay = 0, className = '' }: { children: React.React
   );
 }
 
-function CopyButton() {
-  const [copied, setCopied] = useState(false);
+// Harnessy is not yet published to npm, so copy the documented source install.
+const INSTALL_COMMAND = [
+  'git clone https://github.com/Flow-Research/harnessy-v2.git',
+  'cd harnessy-v2',
+  'npm install --ignore-scripts',
+  '(cd executor && bun install --frozen-lockfile --ignore-scripts)',
+  'npm run build',
+  'npm --workspace @harnessy/core link',
+].join('\n');
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText('npm install');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+function CopyButton() {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copied = status === 'copied';
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(INSTALL_COMMAND);
+      setStatus('copied');
+    } catch {
+      setStatus('failed');
+    }
+    setTimeout(() => setStatus('idle'), 2000);
   };
 
   return (
@@ -58,6 +73,8 @@ function CopyButton() {
           </motion.svg>
           Copied
         </span>
+      ) : status === 'failed' ? (
+        'Copy failed — see the README'
       ) : (
         'Copy install command'
       )}

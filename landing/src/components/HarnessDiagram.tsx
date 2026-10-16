@@ -17,7 +17,9 @@ export function HarnessDiagram() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPulseIndices((prev) => [...prev, Date.now()]);
+      // Each pulse animates for 2 s, so drop finished ones to keep the list bounded.
+      const now = Date.now();
+      setPulseIndices((prev) => [...prev.filter((started) => now - started < 2000), now]);
     }, 2500);
     return () => clearInterval(interval);
   }, [isMobile]);
